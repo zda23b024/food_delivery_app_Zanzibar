@@ -1,0 +1,62 @@
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from sqlalchemy.orm import Session
+
+from app.constants.roles import CUSTOMER
+from app.core.database import get_db
+from app.core.dependencies import get_current_user, require_roles
+from app.models.review import Review
+from app.models.user import User
+from app.schemas.review_schema import ReviewCreate, ReviewResponse
+
+
+router = APIRouter(prefix="/reviews", tags=["Reviews"])
+
+
+@router.post("", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
+def create_review(
+    payload: ReviewCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(CUSTOMER)),
+):
+    review = Review(**payload.model_dump(), customer_id=current_user.id)
+    db.add(review)
+    db.commit()
+    db.refresh(review)
+    return review
+
+
+@router.get("/restaurant/{restaurant_id}", response_model=list[ReviewResponse])
+def list_restaurant_reviews(restaurant_id: str, db: Session = Depends(get_db)):
+    return db.query(Review).filter(Review.restaurant_id == restaurant_id).order_by(Review.created_at.desc()).all()
+
+
+@router.post("/{review_id}/image", response_model=ReviewResponse)
+async def upload_review_image(
+    review_id: str,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(CUSTOMER)),
+):
+    review = db.query(Review).filter(Review.id == review_id).first()
+    if review is None:
+        raise HTTPException(status_code=404, detail="Review not found")
+    if review.customer_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can update only your review")
+
+    extension = Path(image.filename or "").suffix.lower()
+    if extension not in {".jpg", ".jpeg", ".png", ".webp"}:
+        raise HTTPException(status_code=400, detail="Only JPG, PNG, and WEBP images are allowed")
+
+    upload_dir = Path("assets/uploads/reviews")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    file_name = f"{review_id}-{uuid4().hex}{extension}"
+    file_path = upload_dir / file_name
+    file_path.write_bytes(await image.read())
+
+    review.image_url = f"/static/uploads/reviews/{file_name}"
+    db.commit()
+    db.refresh(review)
+    return review
