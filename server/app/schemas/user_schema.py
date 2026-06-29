@@ -30,6 +30,24 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+class PhoneOtpRequest(BaseModel):
+    phone_number: str = Field(..., min_length=7, max_length=32)
+
+
+class PhoneOtpVerify(BaseModel):
+    phone_number: str = Field(..., min_length=7, max_length=32)
+    code: str = Field(..., min_length=4, max_length=10)
+
+
+class PasswordResetRequest(BaseModel):
+    phone_number: str = Field(..., min_length=7, max_length=32)
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(..., min_length=16)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
 class UserResponse(UserBase):
     id: str
     role: str

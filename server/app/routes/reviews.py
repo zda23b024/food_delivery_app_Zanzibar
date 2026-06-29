@@ -1,18 +1,24 @@
-from pathlib import Path
-from uuid import uuid4
-
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.constants.roles import CUSTOMER
+from app.constants.roles import ADMIN, CUSTOMER
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_roles
 from app.models.review import Review
 from app.models.user import User
 from app.schemas.review_schema import ReviewCreate, ReviewResponse
+from app.services.storage_service import save_image_upload
 
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
+
+
+@router.get("", response_model=list[ReviewResponse])
+def list_reviews(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(ADMIN)),
+):
+    return db.query(Review).order_by(Review.created_at.desc()).all()
 
 
 @router.post("", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
@@ -46,17 +52,7 @@ async def upload_review_image(
     if review.customer_id != current_user.id:
         raise HTTPException(status_code=403, detail="You can update only your review")
 
-    extension = Path(image.filename or "").suffix.lower()
-    if extension not in {".jpg", ".jpeg", ".png", ".webp"}:
-        raise HTTPException(status_code=400, detail="Only JPG, PNG, and WEBP images are allowed")
-
-    upload_dir = Path("assets/uploads/reviews")
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    file_name = f"{review_id}-{uuid4().hex}{extension}"
-    file_path = upload_dir / file_name
-    file_path.write_bytes(await image.read())
-
-    review.image_url = f"/static/uploads/reviews/{file_name}"
+    review.image_url = await save_image_upload(image, "reviews", review_id)
     db.commit()
     db.refresh(review)
     return review

@@ -1,0 +1,7 @@
+export function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-TZ", {
+    style: "currency",
+    currency: "TZS",
+    maximumFractionDigits: 0
+  }).format(value);
+}

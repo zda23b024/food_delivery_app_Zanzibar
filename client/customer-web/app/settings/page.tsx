@@ -1,4 +1,18 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+
 export default function SettingsPage() {
+  const router = useRouter();
+  const { user, logout } = useAuth();
+
+  async function handleLogout() {
+    await logout();
+    router.push("/");
+  }
+
   return (
     <div>
       <div className="section-head">
@@ -12,7 +26,7 @@ export default function SettingsPage() {
           <div className="form-grid">
             <div className="field">
               <label>Language</label>
-              <select defaultValue="en">
+              <select defaultValue={user?.preferred_language || "en"}>
                 <option value="en">English</option>
                 <option value="sw">Kiswahili</option>
                 <option value="ar">Arabic</option>
@@ -36,6 +50,16 @@ export default function SettingsPage() {
               <input type="checkbox" defaultChecked />
               Promotions and loyalty offers
             </label>
+            {user ? (
+              <button className="primary-button danger" onClick={handleLogout}>
+                <LogOut size={17} />
+                Logout
+              </button>
+            ) : (
+              <button className="primary-button" onClick={() => router.push("/login")}>
+                Login
+              </button>
+            )}
           </div>
         </section>
       </div>

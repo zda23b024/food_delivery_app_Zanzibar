@@ -17,6 +17,15 @@ class PaymentUpdate(BaseModel):
     failure_reason: str | None = None
 
 
+class PaymentCallback(BaseModel):
+    provider_reference: str
+    status: str
+    amount: Decimal | None = None
+    phone_number: str | None = None
+    provider_message: str | None = None
+    callback_secret: str
+
+
 class PaymentResponse(BaseModel):
     id: str
     order_id: str
@@ -32,3 +41,9 @@ class PaymentResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class PaymentInitiationResponse(PaymentResponse):
+    checkout_reference: str | None = None
+    provider_message: str | None = None
+    requires_customer_action: bool = True

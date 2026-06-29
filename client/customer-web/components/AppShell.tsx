@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Heart, Home, ListOrdered, MapPin, Menu, Search, Settings, ShoppingCart, User } from "lucide-react";
+import { Heart, Home, ListOrdered, LogIn, MapPin, Menu, Search, Settings, ShoppingCart, User, UserPlus } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
 
 const navItems = [
@@ -16,6 +17,7 @@ const navItems = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { items } = useCart();
+  const { user, loading } = useAuth();
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
@@ -31,7 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="location-pill">
           <MapPin size={16} />
-          <span>Stone Town, Zanzibar</span>
+          <span>{user ? `${user.full_name}` : "Stone Town, Zanzibar"}</span>
         </div>
 
         <nav className="nav-list">
@@ -47,6 +49,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
+        {!loading && !user && (
+          <div className="auth-nav">
+            <Link href="/login" className={pathname === "/login" ? "nav-item active" : "nav-item"}>
+              <LogIn size={18} />
+              <span>Login</span>
+            </Link>
+            <Link href="/register" className={pathname === "/register" ? "nav-item active" : "nav-item"}>
+              <UserPlus size={18} />
+              <span>Register</span>
+            </Link>
+          </div>
+        )}
+
         <Link href="/settings" className={pathname === "/settings" ? "nav-item active bottom-link" : "nav-item bottom-link"}>
           <Settings size={18} />
           <span>Settings</span>
@@ -59,6 +74,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <strong>ZanMeal</strong>
         </Link>
         <div className="mobile-actions">
+          {!user && (
+            <Link href="/login" className="icon-button" aria-label="Login">
+              <LogIn size={19} />
+            </Link>
+          )}
           <Link href="/cart" className="icon-button" aria-label="Cart">
             <ShoppingCart size={19} />
             {itemCount > 0 && <span className="badge">{itemCount}</span>}

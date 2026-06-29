@@ -1,5 +1,6 @@
 from app.models.address import Address
 from app.models.analytics import RestaurantAnalytics
+from app.models.audit_log import AuditLog
 from app.models.banner import Banner
 from app.models.category import Category
 from app.models.coupon import Coupon
@@ -11,7 +12,9 @@ from app.models.loyalty_point import LoyaltyPoint
 from app.models.notification import Notification
 from app.models.order import Order
 from app.models.order_item import OrderItem
+from app.models.otp_code import OtpCode
 from app.models.payment import Payment
+from app.models.password_reset_token import PasswordResetToken
 from app.models.promotion import Promotion
 from app.models.refresh_token import RefreshToken
 from app.models.restaurant import Restaurant
@@ -22,6 +25,7 @@ from app.models.user import User
 
 __all__ = [
     "Address",
+    "AuditLog",
     "Banner",
     "Category",
     "Coupon",
@@ -33,7 +37,9 @@ __all__ = [
     "Notification",
     "Order",
     "OrderItem",
+    "OtpCode",
     "Payment",
+    "PasswordResetToken",
     "Promotion",
     "RefreshToken",
     "Restaurant",

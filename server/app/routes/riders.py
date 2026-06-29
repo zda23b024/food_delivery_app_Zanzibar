@@ -5,8 +5,10 @@ from app.constants.roles import ADMIN, RIDER
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_roles
 from app.models.rider import Rider
+from app.models.order import Order
 from app.models.user import User
 from app.schemas.rider_schema import RiderCreate, RiderResponse, RiderUpdate
+from app.schemas.order_schema import OrderResponse
 
 
 router = APIRouter(prefix="/riders", tags=["Riders"])
@@ -31,6 +33,59 @@ def list_riders(
     _: User = Depends(require_roles(ADMIN)),
 ):
     return db.query(Rider).order_by(Rider.created_at.desc()).all()
+
+
+@router.get("/me", response_model=RiderResponse)
+def get_my_rider_profile(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(RIDER)),
+):
+    rider = db.query(Rider).filter(Rider.user_id == current_user.id).first()
+    if rider is None:
+        raise HTTPException(status_code=404, detail="Rider profile not found")
+    return rider
+
+
+@router.get("/me/orders", response_model=list[OrderResponse])
+def get_my_rider_orders(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(RIDER)),
+):
+    rider = db.query(Rider).filter(Rider.user_id == current_user.id).first()
+    if rider is None:
+        return []
+    return db.query(Order).filter(Order.rider_id == rider.id).order_by(Order.created_at.desc()).all()
+
+
+@router.get("/available-orders", response_model=list[OrderResponse])
+def get_available_orders(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(RIDER, ADMIN)),
+):
+    return (
+        db.query(Order)
+        .filter(Order.rider_id.is_(None), Order.status.in_(["accepted", "preparing", "ready_for_pickup"]))
+        .order_by(Order.created_at.desc())
+        .limit(50)
+        .all()
+    )
+
+
+@router.get("/me/earnings")
+def get_my_earnings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(RIDER)),
+):
+    rider = db.query(Rider).filter(Rider.user_id == current_user.id).first()
+    if rider is None:
+        raise HTTPException(status_code=404, detail="Rider profile not found")
+    return {
+        "rider_id": rider.id,
+        "total_deliveries": rider.total_deliveries,
+        "total_earnings": str(rider.total_earnings),
+        "average_rating": rider.average_rating,
+        "rating_count": rider.rating_count,
+    }
 
 
 @router.patch("/{rider_id}", response_model=RiderResponse)

@@ -1,6 +1,3 @@
-from pathlib import Path
-from uuid import uuid4
-
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -13,6 +10,7 @@ from app.models.restaurant import Restaurant
 from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.food_item_schema import FoodItemCreate, FoodItemResponse, FoodItemUpdate
+from app.services.storage_service import save_image_upload
 
 
 router = APIRouter(prefix="/food-items", tags=["Food Menu"])
@@ -112,17 +110,7 @@ async def upload_food_image(
         raise HTTPException(status_code=404, detail="Food item not found")
     ensure_restaurant_manager(db, item.restaurant_id, current_user)
 
-    extension = Path(image.filename or "").suffix.lower()
-    if extension not in {".jpg", ".jpeg", ".png", ".webp"}:
-        raise HTTPException(status_code=400, detail="Only JPG, PNG, and WEBP images are allowed")
-
-    upload_dir = Path("assets/uploads/food-items")
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    file_name = f"{food_item_id}-{uuid4().hex}{extension}"
-    file_path = upload_dir / file_name
-    file_path.write_bytes(await image.read())
-
-    item.image_url = f"/static/uploads/food-items/{file_name}"
+    item.image_url = await save_image_upload(image, "food-items", food_item_id)
     db.commit()
     db.refresh(item)
     return item

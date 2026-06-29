@@ -59,8 +59,91 @@ Rider features implemented:
 - View accepted orders.
 - Start navigation.
 - Complete delivery.
+- Send live WebSocket rider location/status updates during navigation.
+- Send REST delivery tracking updates to persist rider location/status.
 - View earnings.
 - View rider profile and settings.
+
+Rider live tracking environment values:
+
+```bash
+EXPO_PUBLIC_API_URL=http://localhost:8000/api/v1
+EXPO_PUBLIC_WS_URL=ws://localhost:8000/api/v1
+EXPO_PUBLIC_TRACKING_ORDER_ID=<real-backend-order-id>
+EXPO_PUBLIC_RIDER_ID=<real-backend-rider-id>
+EXPO_PUBLIC_RIDER_TOKEN=<rider-jwt-access-token>
+```
+
+The customer web Orders page listens to the active backend order id through `/api/v1/live-tracking/orders/{order_id}`.
+
+## Restaurant Dashboard
+
+Location: `client/restaurant-dashboard`
+
+Framework: Next.js, React, TypeScript.
+
+Pages implemented:
+
+- `/` - Overview
+- `/login` - Restaurant owner login
+- `/orders` - Order management
+- `/menu` - Menu management
+- `/menu/new` - Add food item
+- `/menu/[id]` - Edit food item
+- `/promotions` - Promotions
+- `/earnings` - Revenue and payout summary
+- `/profile` - Restaurant public profile
+- `/settings` - Restaurant settings and logout
+
+Verified:
+
+```bash
+npm.cmd run build
+```
+
+## Admin Dashboard
+
+Location: `client/admin-dashboard`
+
+Framework: Next.js, React, TypeScript.
+
+Pages implemented:
+
+- `/` - Platform overview
+- `/login` - Admin login
+- `/users` - User management
+- `/restaurants` - Restaurant management
+- `/riders` - Rider management
+- `/orders` - Order monitoring
+- `/payments` - Payment monitoring
+- `/reviews` - Review monitoring
+- `/content` - Promotions, banners, coupons, languages
+- `/settings` - Admin settings
+
+Verified:
+
+```bash
+npm.cmd run build
+```
+
+## Customer Mobile App
+
+Location: `mobile/customer-app`
+
+Framework: Expo React Native, TypeScript.
+
+Screens implemented:
+
+- Login/Register
+- Home
+- Restaurants
+- Restaurant Details
+- Cart
+- Checkout
+- Orders and tracking placeholder
+- Favorites
+- Profile
+- Settings
 
 ## Next Frontend Step
 

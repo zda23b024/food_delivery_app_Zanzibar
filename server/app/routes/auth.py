@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.constants.roles import ADMIN, CUSTOMER, RESTAURANT, RIDER
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.security import (
@@ -17,11 +18,21 @@ from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.user_schema import (
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    PhoneOtpRequest,
+    PhoneOtpVerify,
     RefreshTokenRequest,
     TokenResponse,
     UserCreate,
     UserLogin,
     UserResponse,
+)
+from app.services.otp_service import (
+    create_password_reset_token,
+    create_phone_otp,
+    get_valid_password_reset_record,
+    verify_phone_otp,
 )
 
 
@@ -118,3 +129,57 @@ def logout(payload: RefreshTokenRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.post("/phone/request-otp")
+def request_phone_otp(payload: PhoneOtpRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.phone_number == payload.phone_number, User.is_active.is_(True)).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    code = create_phone_otp(db, payload.phone_number, "phone_verification")
+    response = {"message": "Verification code sent"}
+    if settings.expose_dev_otp_codes:
+        response["dev_code"] = code
+    return response
+
+
+@router.post("/phone/verify", response_model=UserResponse)
+def verify_phone(payload: PhoneOtpVerify, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.phone_number == payload.phone_number, User.is_active.is_(True)).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not verify_phone_otp(db, payload.phone_number, "phone_verification", payload.code):
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+    user.is_phone_verified = True
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.post("/password/request-reset")
+def request_password_reset(payload: PasswordResetRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.phone_number == payload.phone_number, User.is_active.is_(True)).first()
+    response = {"message": "If the phone number exists, a password reset code has been sent"}
+    if user is None:
+        return response
+    token = create_password_reset_token(db, user)
+    if settings.expose_dev_otp_codes:
+        response["dev_reset_token"] = token
+    return response
+
+
+@router.post("/password/reset", response_model=MessageResponse)
+def reset_password(payload: PasswordResetConfirm, db: Session = Depends(get_db)):
+    reset_record = get_valid_password_reset_record(db, payload.token)
+    if reset_record is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired password reset token")
+    user = db.query(User).filter(User.id == reset_record.user_id, User.is_active.is_(True)).first()
+    if user is None:
+        raise HTTPException(status_code=400, detail="Invalid password reset token")
+    user.password_hash = hash_password(payload.new_password)
+    reset_record.consume()
+    db.query(RefreshToken).filter(RefreshToken.user_id == user.id, RefreshToken.is_revoked.is_(False)).update(
+        {"is_revoked": True, "revoked_at": datetime.utcnow()}
+    )
+    db.commit()
+    return MessageResponse(message="Password reset successfully")

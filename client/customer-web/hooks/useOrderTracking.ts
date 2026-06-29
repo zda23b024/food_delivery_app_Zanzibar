@@ -6,10 +6,12 @@ import { createOrderTrackingSocket } from "@/services/api";
 export type TrackingEvent = {
   order_id: string;
   type: string;
+  rider_id?: string;
   status?: string;
   latitude?: number;
   longitude?: number;
   eta_minutes?: number;
+  distance_km?: number;
   message?: string;
   sent_at?: string;
 };

@@ -57,6 +57,8 @@ Security:
 - `GET /maps/distance/local` - local distance and ETA calculation without Google API key.
 - `WS /live-tracking/orders/{order_id}` - WebSocket for real-time rider location and order status updates.
 - `POST /delivery-tracking`, `GET /delivery-tracking/order/{order_id}`
+
+`POST /delivery-tracking` also broadcasts the saved tracking event to connected WebSocket clients for that order.
 - `POST /reviews`, `GET /reviews/restaurant/{restaurant_id}`
 - `POST /reviews/{review_id}/image` - upload review image.
 - `POST /favorites`, `GET /favorites`, `DELETE /favorites/{favorite_id}`

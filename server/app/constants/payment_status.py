@@ -1,4 +1,5 @@
 PENDING = "pending"
+PROCESSING = "processing"
 AUTHORIZED = "authorized"
 PAID = "paid"
 FAILED = "failed"

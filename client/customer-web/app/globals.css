@@ -97,6 +97,13 @@ img {
   gap: 6px;
 }
 
+.auth-nav {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
 .nav-item {
   display: flex;
   align-items: center;
@@ -331,6 +338,24 @@ img {
   border-radius: 8px;
   padding: 0 16px;
   font-weight: 800;
+  border: 1px solid var(--orange);
+  cursor: pointer;
+  gap: 8px;
+}
+
+.primary-button.secondary {
+  background: white;
+  color: var(--orange-dark);
+}
+
+.primary-button.danger {
+  border-color: var(--red);
+  background: var(--red);
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
 }
 
 .primary-button.full {
@@ -404,6 +429,14 @@ img {
   gap: 14px;
 }
 
+.form-grid.two-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-span {
+  grid-column: 1 / -1;
+}
+
 .field {
   display: grid;
   gap: 7px;
@@ -422,6 +455,73 @@ img {
   border-radius: 8px;
   padding: 12px;
   outline: 0;
+}
+
+.form-error {
+  border: 1px solid #ffd2d2;
+  border-radius: 8px;
+  background: #fff1f1;
+  color: #a82727;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.form-success {
+  border: 1px solid #bdf2cd;
+  border-radius: 8px;
+  background: #ecfdf3;
+  color: #177540;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.auth-page {
+  display: grid;
+  min-height: calc(100vh - 56px);
+  place-items: center;
+}
+
+.auth-page.inline {
+  min-height: 420px;
+}
+
+.auth-panel {
+  display: grid;
+  width: min(100%, 460px);
+  gap: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  padding: 24px;
+}
+
+.auth-panel.wide {
+  width: min(100%, 680px);
+}
+
+.auth-panel h1 {
+  margin: 0 0 8px;
+  font-size: 30px;
+}
+
+.auth-panel p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.auth-brand {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+
+.auth-switch {
+  text-align: center;
+}
+
+.auth-switch a {
+  color: var(--orange-dark);
+  font-weight: 800;
 }
 
 .payment-options {
@@ -450,6 +550,19 @@ img {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.tracking-event {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.tracking-event small,
+.tracking-event p {
+  color: var(--muted);
+  margin: 0;
 }
 
 .status-pill.accepted,
@@ -544,6 +657,10 @@ img {
 
   .food-card {
     grid-template-columns: 112px minmax(0, 1fr);
+  }
+
+  .form-grid.two-col {
+    grid-template-columns: 1fr;
   }
 
   .floating-cart {

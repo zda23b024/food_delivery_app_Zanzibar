@@ -1,4 +1,4 @@
-export type RiderOrderStatus = "Available" | "Accepted" | "Picked Up" | "Delivered";
+export type RiderOrderStatus = "Available" | "Accepted" | "Preparing" | "Ready" | "Picked Up" | "Delivered" | "Cancelled";
 
 export type RiderOrder = {
   id: string;

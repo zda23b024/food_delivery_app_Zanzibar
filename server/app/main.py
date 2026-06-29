@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
+from app.middleware.audit import AuditLogMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.routes import (
     addresses,
     analytics,
@@ -40,8 +42,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(AuditLogMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
-upload_root = Path("assets/uploads")
+upload_root = Path(settings.storage_local_root)
 upload_root.mkdir(parents=True, exist_ok=True)
 app.mount("/static/uploads", StaticFiles(directory=str(upload_root)), name="uploads")
 
