@@ -1,72 +1,106 @@
-import { useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import { CartItem, FoodItem, Restaurant, TrackingEvent, createTrackingSocket, customerApi, formatMoney } from "./api";
 
 type Screen = "Login" | "Home" | "Restaurants" | "Details" | "Cart" | "Checkout" | "Orders" | "Favorites" | "Profile" | "Settings";
-type FoodItem = { id: string; name: string; price: number; image: string; restaurant: string };
-type CartItem = FoodItem & { quantity: number };
 
-const restaurants = [
-  {
-    id: "stone",
-    name: "Stone Grill Zanzibar",
-    area: "Stone Town",
-    rating: "4.8",
-    image: "https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=900&q=80"
-  },
-  {
-    id: "dhow",
-    name: "Dhow Bites",
-    area: "Nungwi",
-    rating: "4.7",
-    image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80"
-  }
-];
-
-const foods: FoodItem[] = [
-  { id: "pilau", name: "Zanzibar Beef Pilau", price: 14000, restaurant: "Stone Grill Zanzibar", image: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=900&q=80" },
-  { id: "octopus", name: "Octopus Coconut Curry", price: 18000, restaurant: "Stone Grill Zanzibar", image: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=900&q=80" },
-  { id: "platter", name: "Beach Seafood Platter", price: 32000, restaurant: "Dhow Bites", image: "https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?auto=format&fit=crop&w=900&q=80" }
-];
-
-function money(value: number) {
-  return `TZS ${value.toLocaleString("en-TZ")}`;
-}
+const fallbackImage = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("Login");
+  const [token, setToken] = useState("");
+  const [user, setUser] = useState<any | null>(null);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [foods, setFoods] = useState<FoodItem[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [favorites, setFavorites] = useState<any[]>([]);
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [favoriteIds, setFavoriteIds] = useState<string[]>(["stone"]);
+  const [message, setMessage] = useState("Login to connect the mobile app to the backend.");
 
-  const total = useMemo(() => cart.reduce((sum, item) => sum + item.price * item.quantity, 0) + (cart.length ? 2500 : 0), [cart]);
+  const selectedRestaurant = restaurants.find((restaurant) => restaurant.id === selectedRestaurantId) || restaurants[0];
+  const cartRestaurantIds = Array.from(new Set(cart.map((item) => item.restaurant_id)));
+  const deliveryFee = cart.length ? Number(restaurants.find((item) => item.id === cartRestaurantIds[0])?.delivery_fee || 2500) : 0;
+  const total = useMemo(() => cart.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0) + deliveryFee, [cart, deliveryFee]);
+
+  async function loadPublicData() {
+    const [liveRestaurants, liveFoods] = await Promise.all([customerApi.restaurants(), customerApi.foodItems()]);
+    setRestaurants(liveRestaurants);
+    setFoods(liveFoods);
+    setSelectedRestaurantId((current) => current || liveRestaurants[0]?.id || "");
+  }
+
+  async function loadPrivateData(nextToken = token) {
+    if (!nextToken) return;
+    const [profile, savedAddresses, liveOrders, savedFavorites] = await Promise.all([
+      customerApi.me(nextToken),
+      customerApi.addresses(nextToken),
+      customerApi.orders(nextToken),
+      customerApi.favorites(nextToken)
+    ]);
+    setUser(profile);
+    setAddresses(savedAddresses);
+    setOrders(liveOrders);
+    setFavorites(savedFavorites);
+  }
+
+  useEffect(() => {
+    loadPublicData().catch((error) => setMessage(error instanceof Error ? error.message : "Could not load backend data."));
+  }, []);
+
+  async function handleLogin(phone: string, password: string) {
+    const tokens = await customerApi.login(phone, password);
+    setToken(tokens.access_token);
+    await loadPrivateData(tokens.access_token);
+    setMessage("Connected to backend.");
+    setScreen("Home");
+  }
+
+  async function handleRegister(name: string, phone: string, password: string) {
+    await customerApi.register({ full_name: name, phone_number: phone, password });
+    await handleLogin(phone, password);
+  }
 
   function addToCart(item: FoodItem) {
+    const restaurant = restaurants.find((entry) => entry.id === item.restaurant_id);
     setCart((current) => {
       const existing = current.find((entry) => entry.id === item.id);
       if (existing) {
         return current.map((entry) => entry.id === item.id ? { ...entry, quantity: entry.quantity + 1 } : entry);
       }
-      return [...current, { ...item, quantity: 1 }];
+      return [...current, { ...item, quantity: 1, restaurant_name: restaurant?.name }];
     });
   }
 
-  function toggleFavorite(id: string) {
-    setFavoriteIds((current) => current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]);
+  async function toggleFavoriteRestaurant(restaurantId: string) {
+    if (!token) {
+      setScreen("Login");
+      return;
+    }
+    const existing = favorites.find((favorite) => favorite.restaurant_id === restaurantId);
+    if (existing) {
+      await customerApi.removeFavorite(existing.id, token);
+    } else {
+      await customerApi.saveFavorite({ restaurant_id: restaurantId }, token);
+    }
+    setFavorites(await customerApi.favorites(token));
   }
 
   function content() {
-    if (screen === "Login") return <LoginScreen setScreen={setScreen} />;
-    if (screen === "Home") return <HomeScreen setScreen={setScreen} addToCart={addToCart} />;
-    if (screen === "Restaurants") return <RestaurantsScreen setScreen={setScreen} favoriteIds={favoriteIds} toggleFavorite={toggleFavorite} />;
-    if (screen === "Details") return <DetailsScreen addToCart={addToCart} />;
-    if (screen === "Cart") return <CartScreen cart={cart} total={total} setScreen={setScreen} />;
-    if (screen === "Checkout") return <CheckoutScreen total={total} setScreen={setScreen} clearCart={() => setCart([])} />;
-    if (screen === "Orders") return <OrdersScreen />;
-    if (screen === "Favorites") return <FavoritesScreen favoriteIds={favoriteIds} setScreen={setScreen} />;
-    if (screen === "Profile") return <ProfileScreen />;
-    return <SettingsScreen />;
+    if (screen === "Login") return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} message={message} />;
+    if (screen === "Home") return <HomeScreen setScreen={setScreen} setSelectedRestaurantId={setSelectedRestaurantId} restaurants={restaurants} foods={foods} addToCart={addToCart} message={message} />;
+    if (screen === "Restaurants") return <RestaurantsScreen setScreen={setScreen} restaurants={restaurants} favorites={favorites} toggleFavorite={toggleFavoriteRestaurant} setSelectedRestaurantId={setSelectedRestaurantId} />;
+    if (screen === "Details") return <DetailsScreen restaurant={selectedRestaurant} foods={foods.filter((food) => food.restaurant_id === selectedRestaurant?.id)} addToCart={addToCart} />;
+    if (screen === "Cart") return <CartScreen cart={cart} total={total} setCart={setCart} setScreen={setScreen} />;
+    if (screen === "Checkout") return <CheckoutScreen token={token} cart={cart} addresses={addresses} total={total} setScreen={setScreen} clearCart={() => setCart([])} reload={() => loadPrivateData()} />;
+    if (screen === "Orders") return <OrdersScreen token={token} orders={orders} reload={() => loadPrivateData()} />;
+    if (screen === "Favorites") return <FavoritesScreen restaurants={restaurants} favorites={favorites} setScreen={setScreen} setSelectedRestaurantId={setSelectedRestaurantId} />;
+    if (screen === "Profile") return <ProfileScreen user={user} addresses={addresses} token={token} reload={() => loadPrivateData()} />;
+    return <SettingsScreen user={user} onLogout={() => { setToken(""); setUser(null); setScreen("Login"); }} />;
   }
 
   return (
@@ -81,147 +115,242 @@ export default function App() {
 }
 
 function Header({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <View style={styles.header}>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-    </View>
-  );
+  return <View style={styles.header}><Text style={styles.title}>{title}</Text>{subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}</View>;
 }
 
-function LoginScreen({ setScreen }: { setScreen: (screen: Screen) => void }) {
+function LoginScreen({ onLogin, onRegister, message }: { onLogin: (phone: string, password: string) => Promise<void>; onRegister: (name: string, phone: string, password: string) => Promise<void>; message: string }) {
+  const [name, setName] = useState("Zanmart Customer");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  async function submit(kind: "login" | "register") {
+    setError("");
+    try {
+      if (kind === "login") await onLogin(phone, password);
+      else await onRegister(name, phone, password);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Authentication failed.");
+    }
+  }
   return (
     <View style={styles.loginScreen}>
       <View style={styles.logo}><Text style={styles.logoText}>Z</Text></View>
-      <Text style={styles.loginTitle}>ZanMeal</Text>
-      <Text style={styles.subtitle}>Good Food. Fast. Always.</Text>
-      <TextInput style={styles.input} placeholder="Phone number" keyboardType="phone-pad" />
-      <TextInput style={styles.input} placeholder="Password" secureTextEntry />
-      <Pressable style={styles.primaryButton} onPress={() => setScreen("Home")}><Text style={styles.primaryText}>Login</Text></Pressable>
-      <Pressable style={styles.secondaryButton} onPress={() => setScreen("Home")}><Text style={styles.secondaryText}>Create Account</Text></Pressable>
+      <Text style={styles.loginTitle}>Zanmart</Text>
+      <Text style={styles.subtitle}>{message}</Text>
+      <TextInput style={styles.input} placeholder="Full name for register" value={name} onChangeText={setName} />
+      <TextInput style={styles.input} placeholder="Phone number" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
+      <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <Pressable style={styles.primaryButton} onPress={() => submit("login")}><Text style={styles.primaryText}>Login</Text></Pressable>
+      <Pressable style={styles.secondaryButton} onPress={() => submit("register")}><Text style={styles.secondaryText}>Create Account</Text></Pressable>
     </View>
   );
 }
 
-function HomeScreen({ setScreen, addToCart }: { setScreen: (screen: Screen) => void; addToCart: (item: FoodItem) => void }) {
+function HomeScreen({ setScreen, setSelectedRestaurantId, restaurants, foods, addToCart, message }: { setScreen: (screen: Screen) => void; setSelectedRestaurantId: (id: string) => void; restaurants: Restaurant[]; foods: FoodItem[]; addToCart: (item: FoodItem) => void; message: string }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Header title="ZanMeal" subtitle="Stone Town, Zanzibar" />
+      <Header title="Zanmart" subtitle={message} />
       <Pressable style={styles.search} onPress={() => setScreen("Restaurants")}><Ionicons name="search" size={18} /><Text>Search restaurants or meals</Text></Pressable>
-      <Text style={styles.sectionTitle}>Popular Restaurants</Text>
-      {restaurants.map((restaurant) => <RestaurantCard key={restaurant.id} restaurant={restaurant} onPress={() => setScreen("Details")} />)}
-      <Text style={styles.sectionTitle}>Recommended Meals</Text>
-      {foods.map((food) => <FoodCard key={food.id} food={food} onAdd={() => addToCart(food)} />)}
+      <Text style={styles.sectionTitle}>Live Restaurants</Text>
+      {restaurants.slice(0, 4).map((restaurant) => <RestaurantCard key={restaurant.id} restaurant={restaurant} onPress={() => { setSelectedRestaurantId(restaurant.id); setScreen("Details"); }} />)}
+      <Text style={styles.sectionTitle}>Available Meals</Text>
+      {foods.slice(0, 8).map((food) => <FoodCard key={food.id} food={food} restaurant={restaurants.find((item) => item.id === food.restaurant_id)} onAdd={() => addToCart(food)} />)}
     </ScrollView>
   );
 }
 
-function RestaurantsScreen({ setScreen, favoriteIds, toggleFavorite }: { setScreen: (screen: Screen) => void; favoriteIds: string[]; toggleFavorite: (id: string) => void }) {
+function RestaurantsScreen({ setScreen, restaurants, favorites, toggleFavorite, setSelectedRestaurantId }: { setScreen: (screen: Screen) => void; restaurants: Restaurant[]; favorites: any[]; toggleFavorite: (id: string) => void; setSelectedRestaurantId: (id: string) => void }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Header title="Restaurants" subtitle="Hotel, beach, student, and family delivery" />
+      <Header title="Restaurants" subtitle="Live backend restaurant browsing" />
       {restaurants.map((restaurant) => (
         <RestaurantCard
           key={restaurant.id}
           restaurant={restaurant}
-          onPress={() => setScreen("Details")}
-          favorite={favoriteIds.includes(restaurant.id)}
+          favorite={favorites.some((favorite) => favorite.restaurant_id === restaurant.id)}
           onFavorite={() => toggleFavorite(restaurant.id)}
+          onPress={() => { setSelectedRestaurantId(restaurant.id); setScreen("Details"); }}
         />
       ))}
     </ScrollView>
   );
 }
 
-function DetailsScreen({ addToCart }: { addToCart: (item: FoodItem) => void }) {
+function DetailsScreen({ restaurant, foods, addToCart }: { restaurant?: Restaurant; foods: FoodItem[]; addToCart: (item: FoodItem) => void }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Header title="Stone Grill Zanzibar" subtitle="Swahili BBQ - 25-35 min" />
-      {foods.filter((food) => food.restaurant === "Stone Grill Zanzibar").map((food) => <FoodCard key={food.id} food={food} onAdd={() => addToCart(food)} />)}
+      <Header title={restaurant?.name || "Restaurant"} subtitle={`${restaurant?.area || "Zanzibar"} - live menu`} />
+      {foods.length === 0 ? <Text style={styles.empty}>No menu items found for this restaurant.</Text> : foods.map((food) => <FoodCard key={food.id} food={food} restaurant={restaurant} onAdd={() => addToCart(food)} />)}
     </ScrollView>
   );
 }
 
-function CartScreen({ cart, total, setScreen }: { cart: CartItem[]; total: number; setScreen: (screen: Screen) => void }) {
+function CartScreen({ cart, total, setCart, setScreen }: { cart: CartItem[]; total: number; setCart: (items: CartItem[]) => void; setScreen: (screen: Screen) => void }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Header title="Cart" subtitle="Review items before checkout" />
       {cart.length === 0 ? <Text style={styles.empty}>Your cart is empty.</Text> : cart.map((item) => (
-        <View style={styles.line} key={item.id}><Text>{item.quantity}x {item.name}</Text><Text>{money(item.price * item.quantity)}</Text></View>
+        <View style={styles.line} key={item.id}>
+          <Text>{item.quantity}x {item.name}</Text>
+          <Text>{formatMoney(Number(item.price) * item.quantity)}</Text>
+        </View>
       ))}
-      <View style={styles.line}><Text style={styles.bold}>Total</Text><Text style={styles.bold}>{money(total)}</Text></View>
+      <View style={styles.line}><Text style={styles.bold}>Total</Text><Text style={styles.bold}>{formatMoney(total)}</Text></View>
+      <Pressable style={styles.secondaryButton} onPress={() => setCart([])}><Text style={styles.secondaryText}>Clear Cart</Text></Pressable>
       <Pressable style={styles.primaryButton} onPress={() => setScreen("Checkout")}><Text style={styles.primaryText}>Checkout</Text></Pressable>
     </ScrollView>
   );
 }
 
-function CheckoutScreen({ total, setScreen, clearCart }: { total: number; setScreen: (screen: Screen) => void; clearCart: () => void }) {
+function CheckoutScreen({ token, cart, addresses, total, setScreen, clearCart, reload }: { token: string; cart: CartItem[]; addresses: any[]; total: number; setScreen: (screen: Screen) => void; clearCart: () => void; reload: () => Promise<void> }) {
+  const [address, setAddress] = useState(addresses[0]?.street_address || "Stone Town");
+  const [area, setArea] = useState(addresses[0]?.area || "Stone Town");
+  const [phone, setPhone] = useState("+255700000000");
+  const [method, setMethod] = useState("M-Pesa");
+  const [message, setMessage] = useState("");
+  async function placeOrder() {
+    if (!token || cart.length === 0) return;
+    const restaurantIds = Array.from(new Set(cart.map((item) => item.restaurant_id)));
+    if (restaurantIds.length > 1) {
+      setMessage("Checkout one restaurant at a time.");
+      return;
+    }
+    try {
+      const saved = addresses[0] || await customerApi.createAddress({ street_address: address, area, city: "Zanzibar", island: "Unguja", is_default: true }, token);
+      const order = await customerApi.createOrder({
+        restaurant_id: restaurantIds[0],
+        delivery_address_id: saved.id,
+        payment_method: method,
+        items: cart.map((item) => ({ food_item_id: item.id, quantity: item.quantity }))
+      }, token);
+      const payment = await customerApi.pay({ order_id: order.id, method, provider: method === "Cash" ? undefined : method, phone_number: method === "Cash" ? undefined : phone }, token);
+      setMessage(payment.provider_message || `Payment status: ${payment.status}`);
+      clearCart();
+      await reload();
+      setScreen("Orders");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not place order.");
+    }
+  }
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Header title="Checkout" subtitle="Mobile money and delivery details" />
-      <TextInput style={styles.input} defaultValue="Mkunazini Street, Stone Town" />
-      <TextInput style={styles.input} defaultValue="+255700000000" />
-      <View style={styles.chipRow}><Text style={styles.chip}>M-Pesa</Text><Text style={styles.chip}>Airtel Money</Text><Text style={styles.chip}>Tigo Pesa</Text><Text style={styles.chip}>HaloPesa</Text></View>
-      <Text style={styles.total}>Total: {money(total)}</Text>
-      <Pressable style={styles.primaryButton} onPress={() => { clearCart(); setScreen("Orders"); }}><Text style={styles.primaryText}>Place Order</Text></Pressable>
+      <Header title="Checkout" subtitle="Real address, order, and payment initiation" />
+      <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Delivery address" />
+      <TextInput style={styles.input} value={area} onChangeText={setArea} placeholder="Area" />
+      <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="Payment phone" />
+      <View style={styles.chipRow}>{["M-Pesa", "Airtel Money", "Tigo Pesa", "HaloPesa", "Cash"].map((item) => <Pressable key={item} onPress={() => setMethod(item)}><Text style={[styles.chip, method === item && styles.chipActive]}>{item}</Text></Pressable>)}</View>
+      <Text style={styles.total}>Total: {formatMoney(total)}</Text>
+      {message ? <Text style={styles.subtitle}>{message}</Text> : null}
+      <Pressable style={styles.primaryButton} onPress={placeOrder}><Text style={styles.primaryText}>Place Order</Text></Pressable>
     </ScrollView>
   );
 }
 
-function OrdersScreen() {
+function OrdersScreen({ token, orders, reload }: { token: string; orders: any[]; reload: () => Promise<void> }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Header title="Orders" subtitle="Live tracking and order history" />
-      <View style={styles.card}><Text style={styles.bold}>ZM-9041AA</Text><Text>Preparing - ETA 18 min</Text><Text>Live rider location will appear here.</Text></View>
-      <View style={styles.mapMock}><Ionicons name="navigate" size={38} color="#fff" /><Text style={styles.mapText}>Rider tracking</Text></View>
+      <Pressable style={styles.secondaryButton} onPress={reload}><Text style={styles.secondaryText}>Refresh Orders</Text></Pressable>
+      {orders.length === 0 ? <Text style={styles.empty}>No backend orders yet.</Text> : orders.map((order) => <OrderCard key={order.id} token={token} order={order} />)}
     </ScrollView>
   );
 }
 
-function FavoritesScreen({ favoriteIds, setScreen }: { favoriteIds: string[]; setScreen: (screen: Screen) => void }) {
+function OrderCard({ order }: { token: string; order: any }) {
+  const [events, setEvents] = useState<TrackingEvent[]>([]);
+  const socketRef = useRef<WebSocket | null>(null);
+  const latest = events.find((event) => event.latitude && event.longitude);
+  useEffect(() => {
+    customerApi.tracking(order.id).then(setEvents).catch(() => undefined);
+    const socket = createTrackingSocket(order.id);
+    socketRef.current = socket;
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      setEvents((current) => [{ status: data.status, latitude: data.latitude, longitude: data.longitude, eta_minutes: data.eta_minutes, distance_km: data.distance_km, message: data.message, created_at: new Date().toISOString() }, ...current]);
+    };
+    return () => socket.close();
+  }, [order.id]);
+  const openMap = () => {
+    if (latest?.latitude && latest.longitude) Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latest.latitude},${latest.longitude}`);
+  };
+  return (
+    <View style={styles.card}>
+      <Text style={styles.bold}>{order.order_number}</Text>
+      <Text>{order.status} - {formatMoney(Number(order.total_amount))}</Text>
+      <Text>{order.items.map((item: any) => `${item.quantity}x ${item.item_name}`).join(", ")}</Text>
+      {latest ? <Pressable style={styles.mapPanel} onPress={openMap}><Ionicons name="navigate" size={32} color="#fff" /><Text style={styles.mapText}>{latest.eta_minutes || 0} min ETA</Text><Text style={styles.mapSmall}>Open rider location</Text></Pressable> : <Text style={styles.empty}>Waiting for rider tracking events.</Text>}
+    </View>
+  );
+}
+
+function FavoritesScreen({ restaurants, favorites, setScreen, setSelectedRestaurantId }: { restaurants: Restaurant[]; favorites: any[]; setScreen: (screen: Screen) => void; setSelectedRestaurantId: (id: string) => void }) {
+  const favoriteRestaurants = restaurants.filter((restaurant) => favorites.some((favorite) => favorite.restaurant_id === restaurant.id));
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Header title="Favorites" subtitle="Saved restaurants and meals" />
-      {restaurants.filter((restaurant) => favoriteIds.includes(restaurant.id)).map((restaurant) => <RestaurantCard key={restaurant.id} restaurant={restaurant} onPress={() => setScreen("Details")} />)}
+      <Header title="Favorites" subtitle="Saved live restaurants" />
+      {favoriteRestaurants.length === 0 ? <Text style={styles.empty}>No favorites saved yet.</Text> : favoriteRestaurants.map((restaurant) => <RestaurantCard key={restaurant.id} restaurant={restaurant} onPress={() => { setSelectedRestaurantId(restaurant.id); setScreen("Details"); }} />)}
     </ScrollView>
   );
 }
 
-function ProfileScreen() {
+function ProfileScreen({ user, addresses, token, reload }: { user: any | null; addresses: any[]; token: string; reload: () => Promise<void> }) {
+  const [street, setStreet] = useState("");
+  const [area, setArea] = useState("");
+  const [message, setMessage] = useState("");
+  async function saveAddress() {
+    if (!token) return;
+    try {
+      await customerApi.createAddress({ street_address: street, area, city: "Zanzibar", island: "Unguja", is_default: addresses.length === 0 }, token);
+      setStreet("");
+      setArea("");
+      await reload();
+      setMessage("Address saved.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not save address.");
+    }
+  }
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Header title="Profile" subtitle="Amina Ali" />
-      <View style={styles.card}><Text>+255 700 000 000</Text><Text>Language: English</Text><Text>Loyalty points: 1,240</Text></View>
+      <Header title="Profile" subtitle={user?.full_name || "Customer"} />
+      <View style={styles.card}><Text>{user?.phone_number}</Text><Text>Language: {user?.preferred_language || "en"}</Text></View>
+      <Text style={styles.sectionTitle}>Saved Addresses</Text>
+      {addresses.map((item) => <View style={styles.line} key={item.id}><Text>{item.street_address || item.area}</Text><Text>{item.is_default ? "Default" : ""}</Text></View>)}
+      <TextInput style={styles.input} value={street} onChangeText={setStreet} placeholder="Street / hotel / landmark" />
+      <TextInput style={styles.input} value={area} onChangeText={setArea} placeholder="Area" />
+      {message ? <Text style={styles.subtitle}>{message}</Text> : null}
+      <Pressable style={styles.primaryButton} onPress={saveAddress}><Text style={styles.primaryText}>Save Address</Text></Pressable>
     </ScrollView>
   );
 }
 
-function SettingsScreen() {
+function SettingsScreen({ user, onLogout }: { user: any | null; onLogout: () => void }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Header title="Settings" subtitle="Language, notifications, and payments" />
-      <View style={styles.card}><Text>Default payment: M-Pesa</Text><Text>Order notifications: Enabled</Text><Text>Language: English</Text></View>
+      <Header title="Settings" subtitle="Language, notifications, and account" />
+      <View style={styles.card}><Text>Role: {user?.role || "customer"}</Text><Text>Order notifications: Enabled</Text><Text>Maps: Google Maps links</Text></View>
+      <Pressable style={styles.primaryButton} onPress={onLogout}><Text style={styles.primaryText}>Logout</Text></Pressable>
     </ScrollView>
   );
 }
 
-function RestaurantCard({ restaurant, onPress, favorite, onFavorite }: { restaurant: typeof restaurants[number]; onPress: () => void; favorite?: boolean; onFavorite?: () => void }) {
+function RestaurantCard({ restaurant, onPress, favorite, onFavorite }: { restaurant: Restaurant; onPress: () => void; favorite?: boolean; onFavorite?: () => void }) {
   return (
     <Pressable style={styles.card} onPress={onPress}>
-      <Image source={{ uri: restaurant.image }} style={styles.image} />
-      <View style={styles.rowBetween}><Text style={styles.bold}>{restaurant.name}</Text><Text>{restaurant.rating}</Text></View>
-      <Text>{restaurant.area}</Text>
+      <Image source={{ uri: restaurant.image_url || fallbackImage }} style={styles.image} />
+      <View style={styles.rowBetween}><Text style={styles.bold}>{restaurant.name}</Text><Text>{Number(restaurant.average_rating || 0).toFixed(1)}</Text></View>
+      <Text>{restaurant.area || restaurant.island || "Zanzibar"}</Text>
       {onFavorite ? <Pressable onPress={onFavorite}><Text style={styles.favorite}>{favorite ? "Saved" : "Save"}</Text></Pressable> : null}
     </Pressable>
   );
 }
 
-function FoodCard({ food, onAdd }: { food: FoodItem; onAdd: () => void }) {
+function FoodCard({ food, restaurant, onAdd }: { food: FoodItem; restaurant?: Restaurant; onAdd: () => void }) {
   return (
     <View style={styles.card}>
-      <Image source={{ uri: food.image }} style={styles.image} />
-      <View style={styles.rowBetween}><Text style={styles.bold}>{food.name}</Text><Text>{money(food.price)}</Text></View>
-      <Text>{food.restaurant}</Text>
+      <Image source={{ uri: food.image_url || fallbackImage }} style={styles.image} />
+      <View style={styles.rowBetween}><Text style={styles.bold}>{food.name}</Text><Text>{formatMoney(Number(food.price))}</Text></View>
+      <Text>{restaurant?.name || "Restaurant"} - {food.preparation_time_minutes || 20} min</Text>
       <Pressable style={styles.primaryButton} onPress={onAdd}><Text style={styles.primaryText}>Add to Cart</Text></Pressable>
     </View>
   );
@@ -235,11 +364,7 @@ function TabBar({ screen, setScreen, cartCount }: { screen: Screen; setScreen: (
     { screen: "Orders", icon: "receipt", label: "Orders" },
     { screen: "Profile", icon: "person", label: "Profile" }
   ];
-  return (
-    <View style={styles.tabBar}>
-      {tabs.map((tab) => <Pressable key={tab.screen} style={styles.tabItem} onPress={() => setScreen(tab.screen)}><Ionicons name={tab.icon} size={21} color={screen === tab.screen ? "#FF6B00" : "#6F737B"} /><Text style={[styles.tabText, screen === tab.screen && styles.tabActive]}>{tab.label}</Text></Pressable>)}
-    </View>
-  );
+  return <View style={styles.tabBar}>{tabs.map((tab) => <Pressable key={tab.screen} style={styles.tabItem} onPress={() => setScreen(tab.screen)}><Ionicons name={tab.icon} size={21} color={screen === tab.screen ? "#FF6B00" : "#6F737B"} /><Text style={[styles.tabText, screen === tab.screen && styles.tabActive]}>{tab.label}</Text></Pressable>)}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -267,11 +392,14 @@ const styles = StyleSheet.create({
   favorite: { color: "#D95700", fontWeight: "900" },
   line: { alignItems: "center", backgroundColor: "#fff", borderColor: "#E7E8EC", borderRadius: 8, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", padding: 14 },
   empty: { color: "#6F737B" },
+  error: { color: "#B42318", fontWeight: "800" },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { backgroundColor: "#FFF0E6", borderRadius: 8, color: "#D95700", fontWeight: "800", paddingHorizontal: 10, paddingVertical: 8 },
+  chipActive: { backgroundColor: "#111111", color: "#FFFFFF" },
   total: { fontSize: 20, fontWeight: "900" },
-  mapMock: { alignItems: "center", backgroundColor: "#127C83", borderRadius: 8, height: 240, justifyContent: "center" },
-  mapText: { color: "#fff", fontSize: 20, fontWeight: "900", marginTop: 8 },
+  mapPanel: { alignItems: "center", backgroundColor: "#127C83", borderRadius: 8, minHeight: 150, justifyContent: "center", gap: 4 },
+  mapText: { color: "#fff", fontSize: 20, fontWeight: "900" },
+  mapSmall: { color: "#E7FEFF", fontWeight: "700" },
   tabBar: { alignItems: "center", backgroundColor: "#fff", borderColor: "#E7E8EC", borderTopWidth: 1, bottom: 0, flexDirection: "row", justifyContent: "space-around", left: 0, paddingBottom: 10, paddingTop: 10, position: "absolute", right: 0 },
   tabItem: { alignItems: "center", gap: 4 },
   tabText: { color: "#6F737B", fontSize: 11, fontWeight: "700" },

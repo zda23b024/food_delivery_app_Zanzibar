@@ -23,12 +23,15 @@ export type Restaurant = {
   tags: string[];
   supportsHotel: boolean;
   supportsBeach: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
   isFavorite?: boolean;
 };
 
 export type FoodItem = {
   id: string;
   restaurantId: string;
+  restaurantName?: string;
   name: string;
   description: string;
   category: string;

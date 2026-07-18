@@ -18,7 +18,7 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-const TOKEN_KEY = "zanmeal-admin-token";
+const TOKEN_KEY = "zanmart-admin-token";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AdminUser | null>(null);

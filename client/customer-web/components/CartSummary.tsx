@@ -23,7 +23,7 @@ export function CartSummary({ checkout = false }: { checkout?: boolean }) {
             {items.map((item) => (
               <div className="cart-line" key={item.id}>
                 <img src={item.image} alt={item.name} />
-                <div>
+                <div className="cart-item-details">
                   <strong>{item.name}</strong>
                   <span>{item.restaurantName}</span>
                   <small>{formatMoney(item.price)}</small>

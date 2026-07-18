@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.constants.roles import ADMIN, CUSTOMER, RESTAURANT, RIDER
@@ -44,11 +45,10 @@ SUPPORTED_ROLES = {CUSTOMER, RESTAURANT, RIDER, ADMIN}
 def register(payload: UserCreate, db: Session = Depends(get_db)):
     if payload.role not in SUPPORTED_ROLES:
         raise HTTPException(status_code=400, detail="Unsupported user role")
-    existing = (
-        db.query(User)
-        .filter((User.phone_number == payload.phone_number) | (User.email == payload.email))
-        .first()
-    )
+    duplicate_filters = [User.phone_number == payload.phone_number]
+    if payload.email:
+        duplicate_filters.append(User.email == payload.email)
+    existing = db.query(User).filter(or_(*duplicate_filters)).first()
     if existing:
         raise HTTPException(status_code=409, detail="Phone number or email already registered")
 
@@ -68,7 +68,7 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.phone_number == payload.phone_number).first()
+    user = db.query(User).filter(or_(User.phone_number == payload.phone_number, User.email == payload.phone_number)).first()
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_active:

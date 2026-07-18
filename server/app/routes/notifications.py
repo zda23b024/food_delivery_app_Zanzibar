@@ -57,7 +57,7 @@ def mark_read(
 @router.post("/push/test")
 def test_push_notification(
     device_token: str,
-    title: str = "ZanMeal notification",
+    title: str = "Zanmart notification",
     body: str = "Firebase Cloud Messaging is ready.",
     _: User = Depends(require_roles(ADMIN)),
 ):

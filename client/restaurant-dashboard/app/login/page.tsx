@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogIn } from "lucide-react";
+import { Bike, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
@@ -31,15 +31,21 @@ export default function LoginPage() {
     <div className="auth-page">
       <section className="auth-card">
         <div className="brand">
-          <span className="brand-mark">Z</span>
+          <img src="/zanmart-logo.svg" alt="Zanmart Food Delivery" className="brand-logo" />
           <span>
-            <strong>ZanMeal</strong>
+            <strong>Zanmart</strong>
             <small>Restaurant login</small>
           </span>
         </div>
         <div>
-          <h1>Restaurant Login</h1>
-          <p className="muted">Use your restaurant owner account to sync orders, menu, and promotions.</p>
+          <div className="hero-copy">
+            <div className="hero-tag">
+              <Bike size={18} />
+              <span>Restaurant partner login</span>
+            </div>
+            <h1>Restaurant Login</h1>
+            <p className="muted">Welcome back. Use your restaurant account to manage orders, menu items, promotions, and live customer demand.</p>
+          </div>
         </div>
         <form className="form-grid" onSubmit={handleSubmit}>
           <div className="field">

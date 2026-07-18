@@ -25,8 +25,13 @@ export default function AdminLoginPage() {
   return (
     <div className="auth-page">
       <section className="auth-card">
-        <h1>Admin Login</h1>
-        <p className="muted">Use an administrator account to manage ZanMeal platform operations.</p>
+        <div>
+          <div className="hero-copy">
+            <div className="hero-tag">Platform administrator login</div>
+            <h1>Admin Login</h1>
+            <p className="muted">Sign in to manage users, restaurants, riders, and platform operations securely.</p>
+          </div>
+        </div>
         <form className="form-grid" onSubmit={handleSubmit}>
           <div className="field">
             <label>Phone number</label>

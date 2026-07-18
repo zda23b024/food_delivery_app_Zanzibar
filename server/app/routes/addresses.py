@@ -19,6 +19,10 @@ def create_address(
     current_user: User = Depends(get_current_user),
 ):
     address = Address(**payload.model_dump(), user_id=current_user.id)
+    if address.is_default:
+        db.query(Address).filter(Address.user_id == current_user.id, Address.is_default.is_(True)).update(
+            {"is_default": False}
+        )
     db.add(address)
     db.commit()
     db.refresh(address)

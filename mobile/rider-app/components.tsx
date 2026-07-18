@@ -3,10 +3,12 @@ import { Ionicons } from "@expo/vector-icons";
 import type { RiderOrder } from "./types";
 import { formatMoney } from "./data";
 
-export function Header({ title, subtitle }: { title: string; subtitle?: string }) {
+export function Header({ title, subtitle, onPress }: { title: string; subtitle?: string; onPress?: () => void }) {
   return (
     <View style={styles.header}>
-      <Text style={styles.title}>{title}</Text>
+      <Pressable onPress={onPress} style={({ pressed }) => [styles.titlePressable, pressed && styles.titlePressed]}>
+        <Text style={styles.title}>{title}</Text>
+      </Pressable>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
   );
@@ -26,7 +28,10 @@ export function OrderCard({ order, actionLabel, onAction }: { order: RiderOrder;
   return (
     <View style={styles.orderCard}>
       <View style={styles.rowBetween}>
-        <Text style={styles.orderId}>{order.id}</Text>
+        <View>
+          <Text style={styles.orderId}>{order.id}</Text>
+          <Text style={styles.orderStatus}>{order.status}</Text>
+        </View>
         <Text style={styles.payout}>{formatMoney(order.payout)}</Text>
       </View>
       <Text style={styles.restaurant}>{order.restaurant}</Text>
@@ -35,7 +40,9 @@ export function OrderCard({ order, actionLabel, onAction }: { order: RiderOrder;
       <View style={styles.metaRow}>
         <Text style={styles.chip}>{order.distanceKm} km</Text>
         <Text style={styles.chip}>{order.items} items</Text>
-        <Text style={styles.chip}>{order.status}</Text>
+      </View>
+      <View style={styles.statusRow}>
+        <Text style={styles.orderTag}>{order.status}</Text>
       </View>
       <Pressable style={styles.button} onPress={onAction}>
         <Text style={styles.buttonText}>{actionLabel}</Text>
@@ -50,7 +57,7 @@ const styles = StyleSheet.create({
     marginBottom: 18
   },
   title: {
-    color: "#1A1A1A",
+    color: "#111827",
     fontSize: 26,
     fontWeight: "800"
   },
@@ -61,15 +68,20 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     minWidth: 105,
-    borderColor: "#E7E8EC",
-    borderRadius: 8,
+    borderColor: "#D1FAE5",
+    borderRadius: 16,
     borderWidth: 1,
-    backgroundColor: "#FFFFFF",
-    padding: 14,
-    gap: 8
+    backgroundColor: "#F7FFFC",
+    padding: 16,
+    gap: 8,
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 18,
+    elevation: 4
   },
   statValue: {
-    color: "#1A1A1A",
+    color: "#111827",
     fontSize: 18,
     fontWeight: "800"
   },
@@ -78,13 +90,19 @@ const styles = StyleSheet.create({
     fontSize: 12
   },
   orderCard: {
-    borderColor: "#E7E8EC",
-    borderRadius: 8,
+    borderColor: "#FBBF24",
+    borderLeftWidth: 4,
+    borderRadius: 18,
     borderWidth: 1,
     backgroundColor: "#FFFFFF",
-    padding: 16,
-    gap: 9,
-    marginBottom: 12
+    padding: 18,
+    gap: 10,
+    marginBottom: 14,
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    elevation: 5
   },
   rowBetween: {
     alignItems: "center",
@@ -93,43 +111,71 @@ const styles = StyleSheet.create({
   },
   orderId: {
     color: "#1A1A1A",
-    fontWeight: "800"
+    fontWeight: "800",
+    fontSize: 15
+  },
+  orderStatus: {
+    color: "#FF6B00",
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "capitalize",
+    marginTop: 4
   },
   payout: {
     color: "#FF6B00",
     fontWeight: "800"
   },
   restaurant: {
-    color: "#1A1A1A",
+    color: "#111827",
     fontSize: 16,
     fontWeight: "700"
   },
   detail: {
-    color: "#6F737B"
+    color: "#475569"
   },
   metaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8
   },
-  chip: {
-    backgroundColor: "#F1F3F4",
-    borderRadius: 8,
-    color: "#515760",
+  statusRow: {
+    flexDirection: "row",
+    marginTop: 6
+  },
+  orderTag: {
+    color: "#92400e",
+    backgroundColor: "#ffedd5",
+    borderRadius: 999,
     fontSize: 12,
-    paddingHorizontal: 8,
+    fontWeight: "700",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    overflow: "hidden"
+  },
+  chip: {
+    backgroundColor: "#fff7ed",
+    borderRadius: 10,
+    color: "#92400e",
+    fontSize: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6
   },
   button: {
     alignItems: "center",
     backgroundColor: "#FF6B00",
-    borderRadius: 8,
-    minHeight: 44,
+    borderRadius: 12,
+    minHeight: 48,
     justifyContent: "center",
     marginTop: 4
   },
   buttonText: {
     color: "#FFFFFF",
     fontWeight: "800"
+  },
+  titlePressable: {
+    alignSelf: "flex-start"
+  },
+  titlePressed: {
+    opacity: 0.6
   }
 });

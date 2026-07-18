@@ -22,6 +22,7 @@ from app.models.review import Review
 from app.models.rider import Rider
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.models.verification_document import VerificationDocument
 
 __all__ = [
     "Address",
@@ -48,4 +49,5 @@ __all__ = [
     "Rider",
     "Transaction",
     "User",
+    "VerificationDocument",
 ]

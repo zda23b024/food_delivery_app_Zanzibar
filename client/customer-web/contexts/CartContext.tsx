@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { CartItem, FoodItem } from "@/types";
-import { restaurants } from "@/data/mock";
 
 type CartContextValue = {
   items: CartItem[];
@@ -21,14 +20,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem("zanmeal-cart");
+    const stored = window.localStorage.getItem("zanmart-cart");
     if (stored) {
       setItems(JSON.parse(stored) as CartItem[]);
     }
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem("zanmeal-cart", JSON.stringify(items));
+    window.localStorage.setItem("zanmart-cart", JSON.stringify(items));
   }, [items]);
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -42,7 +41,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       deliveryFee,
       total,
       addItem(item) {
-        const restaurantName = restaurants.find((restaurant) => restaurant.id === item.restaurantId)?.name || "Restaurant";
+        const restaurantName = item.restaurantName || "Restaurant";
         setItems((current) => {
           const existing = current.find((cartItem) => cartItem.id === item.id);
           if (existing) {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BadgePercent, BarChart3, ChefHat, ClipboardList, Home, LogIn, LogOut, Settings, Store, Utensils } from "lucide-react";
+import { BadgePercent, BarChart3, ClipboardList, Home, LogIn, LogOut, Settings, Store, Utensils } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
@@ -29,9 +29,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     <div className="dashboard-shell">
       <aside className="sidebar">
         <Link href="/" className="brand">
-          <span className="brand-mark"><ChefHat size={22} /></span>
+          <img src="/zanmart-logo.svg" alt="Zanmart Food Delivery" className="brand-logo" />
           <span>
-            <strong>ZanMeal</strong>
+            <strong>Zanmart</strong>
             <small>Restaurant Dashboard</small>
           </span>
         </Link>

@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from app.constants.order_status import ACCEPTED, PREPARING
-from app.constants.payment_status import PAID
+from app.constants.payment_status import COD_PENDING, PAID
 from app.constants.roles import ADMIN, CUSTOMER, RESTAURANT, RIDER
 from tests.conftest import login_user, register_user
 
@@ -27,6 +27,148 @@ def test_auth_register_login_refresh_logout_and_me(client):
     logout = client.post("/api/v1/auth/logout", json={"refresh_token": refreshed.json()["refresh_token"]})
     assert logout.status_code == 200
     assert logout.json()["message"] == "Logged out"
+
+
+def test_auth_allows_multiple_users_without_email(client):
+    first = client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "No Email One",
+            "phone_number": "+255700009001",
+            "preferred_language": "en",
+            "password": "Password123",
+            "role": CUSTOMER,
+        },
+    )
+    assert first.status_code == 201, first.text
+    second = client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "No Email Two",
+            "phone_number": "+255700009002",
+            "preferred_language": "en",
+            "password": "Password123",
+            "role": CUSTOMER,
+        },
+    )
+    assert second.status_code == 201, second.text
+
+
+def test_customer_successful_order_and_payment_flow(client):
+    register_user(client, CUSTOMER, "+255700000151", "customer151@example.com")
+    register_user(client, RESTAURANT, "+255700000152", "owner152@example.com")
+    register_user(client, ADMIN, "+255700000153", "admin153@example.com")
+
+    customer_headers, _ = login_user(client, "+255700000151")
+    owner_headers, _ = login_user(client, "+255700000152")
+    admin_headers, _ = login_user(client, "+255700000153")
+
+    profile = client.get("/api/v1/auth/me", headers=customer_headers)
+    assert profile.status_code == 200
+    assert profile.json()["phone_number"] == "+255700000151"
+    assert profile.json()["role"] == CUSTOMER
+
+    category = client.post(
+        "/api/v1/categories",
+        json={"name": "Customer Flow Meals", "description": "Checkout test category"},
+        headers=admin_headers,
+    )
+    assert category.status_code == 201, category.text
+
+    restaurant = client.post(
+        "/api/v1/restaurants",
+        json={
+            "name": "Customer Flow Kitchen",
+            "service_type": "restaurant",
+            "phone_number": "+255777151152",
+            "address": "Mlandege Road",
+            "area": "Mlandege",
+            "city": "Zanzibar",
+            "island": "Unguja",
+            "latitude": -6.164,
+            "longitude": 39.199,
+            "min_order_amount": "5000",
+            "delivery_fee": "2000",
+            "commission_rate": "15",
+        },
+        headers=owner_headers,
+    )
+    assert restaurant.status_code == 201, restaurant.text
+
+    food_item = client.post(
+        "/api/v1/food-items",
+        json={
+            "restaurant_id": restaurant.json()["id"],
+            "category_id": category.json()["id"],
+            "name": "Customer Flow Pilau",
+            "price": "12000",
+            "preparation_time_minutes": 20,
+            "is_available": True,
+        },
+        headers=owner_headers,
+    )
+    assert food_item.status_code == 201, food_item.text
+
+    address = client.post(
+        "/api/v1/addresses",
+        json={
+            "label": "Home",
+            "street_address": "Kariakoo Zanzibar",
+            "area": "Stone Town",
+            "city": "Zanzibar",
+            "island": "Unguja",
+            "latitude": -6.161,
+            "longitude": 39.192,
+            "delivery_notes": "Call before arrival",
+            "is_default": True,
+        },
+        headers=customer_headers,
+    )
+    assert address.status_code == 201, address.text
+    assert address.json()["is_default"] is True
+
+    saved_addresses = client.get("/api/v1/addresses/me", headers=customer_headers)
+    assert saved_addresses.status_code == 200
+    assert saved_addresses.json()[0]["id"] == address.json()["id"]
+
+    order = client.post(
+        "/api/v1/orders",
+        json={
+            "restaurant_id": restaurant.json()["id"],
+            "delivery_address_id": address.json()["id"],
+            "payment_method": "M-Pesa",
+            "delivery_type": "standard",
+            "service_type": "food",
+            "customer_notes": "Please pack well",
+            "items": [{"food_item_id": food_item.json()["id"], "quantity": 2}],
+        },
+        headers=customer_headers,
+    )
+    assert order.status_code == 201, order.text
+    assert order.json()["status"] == "pending"
+    assert order.json()["customer_id"] == profile.json()["id"]
+    assert Decimal(order.json()["total_amount"]) == Decimal("26000.00")
+
+    payment = client.post(
+        "/api/v1/payments",
+        json={
+            "order_id": order.json()["id"],
+            "method": "M-Pesa",
+            "provider": "M-Pesa",
+            "phone_number": "+255700000151",
+        },
+        headers=customer_headers,
+    )
+    assert payment.status_code == 201, payment.text
+    assert payment.json()["order_id"] == order.json()["id"]
+    assert payment.json()["provider"] == "mpesa"
+    assert payment.json()["status"] == "processing"
+    assert payment.json()["checkout_reference"]
+
+    order_history = client.get("/api/v1/orders", headers=customer_headers)
+    assert order_history.status_code == 200
+    assert order_history.json()[0]["id"] == order.json()["id"]
+    assert order_history.json()[0]["items"][0]["food_item_id"] == food_item.json()["id"]
 
 
 def test_main_marketplace_flow_endpoint_by_endpoint(client):
@@ -158,6 +300,13 @@ def test_main_marketplace_flow_endpoint_by_endpoint(client):
     assert order_data["status"] == "pending"
     assert Decimal(order_data["total_amount"]) == Decimal("30500.00")
 
+    customer_cannot_update = client.patch(
+        f"/api/v1/orders/{order_id}/status",
+        json={"status": ACCEPTED},
+        headers=customer_headers,
+    )
+    assert customer_cannot_update.status_code == 403
+
     customer_orders = client.get("/api/v1/orders", headers=customer_headers)
     assert customer_orders.status_code == 200
     assert customer_orders.json()[0]["id"] == order_id
@@ -200,6 +349,22 @@ def test_main_marketplace_flow_endpoint_by_endpoint(client):
     assert assigned_order.status_code == 200
     assert assigned_order.json()["rider_id"] == rider_id
 
+    hide_item = client.patch(
+        f"/api/v1/food-items/{food_item_id}",
+        json={"is_available": False},
+        headers=owner_headers,
+    )
+    assert hide_item.status_code == 200
+    public_hidden_search = client.get(f"/api/v1/food-items?restaurant_id={restaurant_id}")
+    assert public_hidden_search.status_code == 200
+    assert all(item["id"] != food_item_id for item in public_hidden_search.json())
+    owner_management_search = client.get(
+        f"/api/v1/food-items?restaurant_id={restaurant_id}&include_unavailable=true",
+        headers=owner_headers,
+    )
+    assert owner_management_search.status_code == 200
+    assert any(item["id"] == food_item_id for item in owner_management_search.json())
+
     tracking = client.post(
         "/api/v1/delivery-tracking",
         json={
@@ -219,6 +384,11 @@ def test_main_marketplace_flow_endpoint_by_endpoint(client):
     tracking_list = client.get(f"/api/v1/delivery-tracking/order/{order_id}")
     assert tracking_list.status_code == 200
     assert tracking_list.json()[0]["order_id"] == order_id
+
+    provider_status = client.get("/api/v1/payments/providers")
+    assert provider_status.status_code == 200
+    assert provider_status.json()["mode"] == "mock"
+    assert provider_status.json()["providers"]["mpesa"]["configured"] is True
 
     payment = client.post(
         "/api/v1/payments",
@@ -245,6 +415,33 @@ def test_main_marketplace_flow_endpoint_by_endpoint(client):
     )
     assert callback.status_code == 200, callback.text
     assert callback.json()["status"] == PAID
+
+    duplicate_callback = client.post(
+        "/api/v1/payments/callbacks/mobile-money",
+        json={
+            "provider_reference": provider_reference,
+            "status": "paid",
+            "amount": "30500.00",
+            "phone_number": "+255700000201",
+            "provider_message": "Duplicate provider callback",
+            "callback_secret": "change-this-payment-callback-secret",
+        },
+    )
+    assert duplicate_callback.status_code == 200, duplicate_callback.text
+    assert duplicate_callback.json()["status"] == PAID
+
+    wrong_phone_callback = client.post(
+        "/api/v1/payments/callbacks/mobile-money",
+        json={
+            "provider_reference": provider_reference,
+            "status": "paid",
+            "amount": "30500.00",
+            "phone_number": "+255700999999",
+            "provider_message": "Wrong phone number",
+            "callback_secret": "change-this-payment-callback-secret",
+        },
+    )
+    assert wrong_phone_callback.status_code == 400
 
     payment_update = client.patch(
         f"/api/v1/payments/{payment_id}",
@@ -288,6 +485,13 @@ def test_main_marketplace_flow_endpoint_by_endpoint(client):
         headers=customer_headers,
     )
     assert favorite_food.status_code == 201, favorite_food.text
+
+    invalid_favorite = client.post(
+        "/api/v1/favorites",
+        json={"restaurant_id": restaurant_id, "food_item_id": food_item_id},
+        headers=customer_headers,
+    )
+    assert invalid_favorite.status_code == 400
 
     favorites = client.get("/api/v1/favorites", headers=customer_headers)
     assert favorites.status_code == 200
@@ -456,6 +660,15 @@ def test_file_upload_endpoints(client):
         },
         headers=customer_headers,
     ).json()["id"]
+
+    cash_payment = client.post(
+        "/api/v1/payments",
+        json={"order_id": order_id, "method": "Cash"},
+        headers=customer_headers,
+    )
+    assert cash_payment.status_code == 201, cash_payment.text
+    assert cash_payment.json()["status"] == COD_PENDING
+    assert cash_payment.json()["requires_customer_action"] is False
 
     review_id = client.post(
         "/api/v1/reviews",

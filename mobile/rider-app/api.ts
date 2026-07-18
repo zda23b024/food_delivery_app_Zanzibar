@@ -12,6 +12,14 @@ export type TrackingPayload = {
   message?: string;
 };
 
+export type DistancePayload = {
+  origin_latitude: number;
+  origin_longitude: number;
+  destination_latitude: number;
+  destination_longitude: number;
+  preparation_minutes?: number;
+};
+
 async function request<T>(path: string, options: RequestInit = {}, token?: string) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
@@ -84,6 +92,15 @@ export const riderApi = {
         body: JSON.stringify(payload)
       },
       token
+    );
+  },
+  getDistance(payload: DistancePayload) {
+    return request<{ distance_km: number; eta_minutes: number; provider?: string }>(
+      "/maps/distance",
+      {
+        method: "POST",
+        body: JSON.stringify(payload)
+      }
     );
   }
 };

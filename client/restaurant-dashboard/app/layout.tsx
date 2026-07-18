@@ -4,8 +4,8 @@ import { DashboardShell } from "@/components/DashboardShell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ZanMeal Restaurant Dashboard",
-  description: "Restaurant operations dashboard for ZanMeal vendors."
+  title: "Zanmart Restaurant Dashboard",
+  description: "Restaurant operations dashboard for Zanmart vendors."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

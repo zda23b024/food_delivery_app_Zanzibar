@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "ZanMeal Customer",
-    "slug": "zanmeal-customer",
+    "name": "Zanmart Customer",
+    "slug": "zanmart-customer",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",

@@ -3,7 +3,9 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
-from app.constants.order_status import PENDING
+from datetime import datetime
+
+from app.constants.order_status import CANCELLED, DELIVERED, PENDING, PICKED_UP
 from app.constants.roles import ADMIN, CUSTOMER, RESTAURANT, RIDER
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_roles
@@ -131,6 +133,12 @@ def get_order(
     restaurant = db.query(Restaurant).filter(Restaurant.id == order.restaurant_id).first()
     if current_user.role == RESTAURANT and restaurant and restaurant.owner_id == current_user.id:
         return order
+    if current_user.role == RIDER:
+        from app.models.rider import Rider
+
+        rider = db.query(Rider).filter(Rider.user_id == current_user.id).first()
+        if rider and order.rider_id == rider.id:
+            return order
     raise HTTPException(status_code=403, detail="You cannot view this order")
 
 
@@ -147,7 +155,13 @@ async def update_order_status(
     restaurant = db.query(Restaurant).filter(Restaurant.id == order.restaurant_id).first()
     allowed = current_user.role == ADMIN or (
         current_user.role == RESTAURANT and restaurant and restaurant.owner_id == current_user.id
-    ) or current_user.role == RIDER
+    )
+    if current_user.role == RIDER:
+        from app.models.rider import Rider
+
+        rider = db.query(Rider).filter(Rider.user_id == current_user.id).first()
+        if rider and (order.rider_id == rider.id or (order.rider_id is None and payload.rider_id == rider.id)):
+            allowed = True
     if not allowed:
         raise HTTPException(status_code=403, detail="You cannot update this order")
     order.status = payload.status
@@ -155,6 +169,12 @@ async def update_order_status(
         order.rider_id = payload.rider_id
     if payload.cancellation_reason:
         order.cancellation_reason = payload.cancellation_reason
+    if payload.status == PICKED_UP:
+        order.picked_up_at = datetime.utcnow()
+    elif payload.status == DELIVERED:
+        order.delivered_at = datetime.utcnow()
+    elif payload.status == CANCELLED:
+        order.cancelled_at = datetime.utcnow()
     db.commit()
     db.refresh(order)
     await live_tracking_manager.broadcast(

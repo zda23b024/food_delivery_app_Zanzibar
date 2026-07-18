@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Zanmart Logo Mark</title>
+  <desc id="desc">Orange Zanmart delivery logo mark with white Z, motion lines, and food cloche.</desc>
+  <defs>
+    <linearGradient id="orange" x1="32" x2="224" y1="28" y2="228" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff6b00"/>
+      <stop offset="1" stop-color="#ef2f18"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#d94312" flood-opacity=".24"/>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="58" fill="url(#orange)" filter="url(#shadow)"/>
+  <path fill="#fff" d="M71 63h119c9 0 15 11 9 19l-72 91h58c7 0 12 5 12 12s-5 12-12 12H75c-10 0-15-11-9-19l72-91H71c-7 0-12-5-12-12s5-12 12-12Z"/>
+  <path fill="#fff" d="M41 101h49c6 0 11 5 11 11s-5 11-11 11H41c-6 0-11-5-11-11s5-11 11-11Zm14 39h48c6 0 11 5 11 11s-5 11-11 11H55c-6 0-11-5-11-11s5-11 11-11Z" opacity=".9"/>
+  <path fill="#fff" d="M137 153c2-25 23-44 48-44s46 19 48 44h-96Zm47-55a8 8 0 0 1 8 8v5h-16v-5a8 8 0 0 1 8-8Zm-55 65h112c5 0 9 4 9 9s-4 9-9 9H129c-5 0-9-4-9-9s4-9 9-9Z"/>
+  <path fill="#fff" d="M43 185h31c6 0 11 5 11 11s-5 11-11 11H43c-6 0-11-5-11-11s5-11 11-11Z" opacity=".85"/>
+</svg>

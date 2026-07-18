@@ -10,7 +10,7 @@ export default function AdminOverviewPage() {
       <div className="page-head">
         <div>
           <h1>Platform Overview</h1>
-          <p>Monitor ZanMeal operations across customers, restaurants, riders, payments, and coverage zones.</p>
+          <p>Monitor Zanmart operations across customers, restaurants, riders, payments, and coverage zones.</p>
         </div>
       </div>
       <div className="stats-grid">

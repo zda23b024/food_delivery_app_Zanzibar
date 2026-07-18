@@ -1,39 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Heart, Hotel, Star, Umbrella } from "lucide-react";
+import { Heart, Star } from "lucide-react";
+import { useFavorites } from "@/contexts/FavoriteContext";
 import type { Restaurant } from "@/types";
 import { formatMoney } from "@/utils/money";
 
 export function RestaurantCard({ restaurant }: { restaurant: Restaurant }) {
-  const [favorite, setFavorite] = useState(Boolean(restaurant.isFavorite));
+  const { isFavoriteRestaurant, toggleRestaurantFavorite } = useFavorites();
+  const favorite = isFavoriteRestaurant(restaurant.id);
+  const deliveryMinutes = Number.parseInt(String(restaurant.deliveryMinutes || "25"), 10) || 25;
 
   return (
     <article className="restaurant-card">
-      <Link href={`/restaurants/${restaurant.id}`} className="restaurant-media">
-        <img src={restaurant.image} alt={restaurant.name} />
-      </Link>
+      <div className="restaurant-media">
+        <Link href={`/restaurants/${restaurant.id}`}>
+          <img src={restaurant.image} alt={restaurant.name} />
+        </Link>
+        <button
+          className={favorite ? "icon-button small favorite floating active" : "icon-button small favorite floating"}
+          onClick={() => toggleRestaurantFavorite(restaurant.id)}
+          aria-label={`Favorite ${restaurant.name}`}
+          type="button"
+        >
+          <Heart size={16} fill={favorite ? "currentColor" : "none"} />
+        </button>
+      </div>
       <div className="restaurant-body">
-        <div className="row between">
-          <Link href={`/restaurants/${restaurant.id}`} className="card-title">
-            {restaurant.name}
-          </Link>
-          <button className="icon-button small" onClick={() => setFavorite((value) => !value)} aria-label={`Favorite ${restaurant.name}`}>
-            <Heart size={16} fill={favorite ? "currentColor" : "none"} />
-          </button>
-        </div>
+        <span className="time-badge">{Math.max(10, deliveryMinutes - 5)}-{deliveryMinutes} min</span>
+        <Link href={`/restaurants/${restaurant.id}`} className="card-title">
+          {restaurant.name}
+        </Link>
         <p>{restaurant.cuisine} - {restaurant.area}</p>
         <div className="meta-grid">
           <span><Star size={14} fill="currentColor" /> {restaurant.rating}</span>
-          <span>{restaurant.deliveryMinutes} min</span>
-          <span>{formatMoney(restaurant.deliveryFee)}</span>
         </div>
-        <div className="tag-row">
-          {restaurant.tags.map((tag) => <span key={tag}>{tag}</span>)}
-          {restaurant.supportsHotel && <span><Hotel size={13} /> Hotel</span>}
-          {restaurant.supportsBeach && <span><Umbrella size={13} /> Beach</span>}
-        </div>
+        <small>Delivery from {formatMoney(restaurant.deliveryFee)}</small>
       </div>
     </article>
   );

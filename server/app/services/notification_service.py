@@ -42,6 +42,6 @@ def send_push_notification(
 
 
 def build_order_notification(order_id: str, status: str) -> tuple[str, str, dict[str, str]]:
-    title = "ZanMeal order update"
+    title = "Zanmart order update"
     body = f"Your order {order_id} is now {status}."
     return title, body, {"order_id": order_id, "status": status}

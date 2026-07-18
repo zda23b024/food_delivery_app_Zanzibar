@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, Bike, ClipboardList, CreditCard, Home, LogIn, LogOut, MessageSquare, Settings, Shield, Store, Users } from "lucide-react";
+import { BarChart3, Bike, ClipboardList, CreditCard, Home, LogIn, LogOut, MessageSquare, Settings, Store, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
@@ -31,9 +31,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     <div className="admin-shell">
       <aside className="sidebar">
         <Link href="/" className="brand">
-          <span className="brand-mark"><Shield size={22} /></span>
+          <img src="/zanmart-logo.svg" alt="Zanmart Food Delivery" className="brand-logo" />
           <span>
-            <strong>ZanMeal</strong>
+            <strong>Zanmart</strong>
             <small>Admin Dashboard</small>
           </span>
         </Link>

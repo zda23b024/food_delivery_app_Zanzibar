@@ -30,10 +30,39 @@ export const adminApi = {
     }),
   me: (token: string) => request("/auth/me", {}, token),
   users: (token: string) => request("/users", {}, token),
+  updateUser: (userId: string, body: unknown, token: string) =>
+    request(`/users/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body)
+    }, token),
   restaurants: () => request("/restaurants"),
+  updateRestaurant: (restaurantId: string, body: unknown, token: string) =>
+    request(`/restaurants/${restaurantId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body)
+    }, token),
   riders: (token: string) => request("/riders", {}, token),
+  updateRider: (riderId: string, body: unknown, token: string) =>
+    request(`/riders/${riderId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body)
+    }, token),
   orders: (token: string) => request("/orders", {}, token),
+  updateOrderStatus: (orderId: string, status: string, token: string) =>
+    request(`/orders/${orderId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status })
+    }, token),
   payments: (token: string) => request("/payments", {}, token),
+  updatePayment: (paymentId: string, body: unknown, token: string) =>
+    request(`/payments/${paymentId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body)
+    }, token),
   reviews: (token: string) => request("/reviews", {}, token),
+  deleteReview: (reviewId: string, token: string) =>
+    request(`/reviews/${reviewId}`, {
+      method: "DELETE"
+    }, token),
   analytics: (token: string) => request("/analytics/restaurants", {}, token)
 };

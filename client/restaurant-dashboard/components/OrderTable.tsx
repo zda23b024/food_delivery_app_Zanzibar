@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Clock, PackageCheck } from "lucide-react";
+import { CheckCircle2, Clock, PackageCheck, XCircle } from "lucide-react";
 import type { RestaurantOrder } from "@/types";
 import { formatMoney } from "@/utils/money";
 
@@ -10,6 +10,14 @@ const nextStatus: Record<string, string> = {
   preparing: "ready_for_pickup",
   ready_for_pickup: "picked_up",
   picked_up: "delivered"
+};
+
+const actionLabels: Record<string, string> = {
+  accepted: "Accept",
+  preparing: "Start prep",
+  ready_for_pickup: "Ready",
+  picked_up: "Hand off",
+  delivered: "Complete"
 };
 
 export function OrderTable({
@@ -29,7 +37,11 @@ export function OrderTable({
         <span>Total</span>
         <span>Action</span>
       </div>
-      {orders.map((order) => (
+      {orders.length === 0 ? (
+        <div className="table-row empty-row">
+          <span>No live orders found.</span>
+        </div>
+      ) : orders.map((order) => (
         <div className="table-row" key={order.id}>
           <span>
             <strong>{order.orderNumber}</strong>
@@ -42,14 +54,23 @@ export function OrderTable({
             {order.status.replaceAll("_", " ")}
           </span>
           <strong>{formatMoney(order.total)}</strong>
-          <button
-            className="icon-command"
-            disabled={!nextStatus[order.status]}
-            onClick={() => nextStatus[order.status] && onAdvance?.(order.id, nextStatus[order.status])}
-            aria-label={`Advance ${order.orderNumber}`}
-          >
-            <PackageCheck size={17} />
-          </button>
+          <span className="table-actions">
+            <button
+              className="mini-button"
+              disabled={!nextStatus[order.status]}
+              onClick={() => nextStatus[order.status] && onAdvance?.(order.id, nextStatus[order.status])}
+              aria-label={`Advance ${order.orderNumber}`}
+            >
+              <PackageCheck size={15} />
+              {nextStatus[order.status] ? actionLabels[nextStatus[order.status]] : "Done"}
+            </button>
+            {!["delivered", "cancelled"].includes(order.status) && (
+              <button className="mini-button danger" onClick={() => onAdvance?.(order.id, "cancelled")} aria-label={`Cancel ${order.orderNumber}`}>
+                <XCircle size={15} />
+                Cancel
+              </button>
+            )}
+          </span>
         </div>
       ))}
     </div>

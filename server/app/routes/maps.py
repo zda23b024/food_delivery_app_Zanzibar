@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from fastapi import APIRouter
 
-from app.services.maps_service import calculate_distance_km, estimate_eta_minutes, get_google_distance_matrix, optimize_route
+from app.services.maps_service import calculate_distance_km, estimate_eta_minutes, get_google_distance_matrix, optimize_route, reverse_geocode
 
 
 router = APIRouter(prefix="/maps", tags=["Google Maps"])
@@ -47,3 +47,8 @@ async def route_optimization(payload: RouteOptimizationRequest):
 def local_distance(origin_latitude: float, origin_longitude: float, destination_latitude: float, destination_longitude: float):
     distance_km = calculate_distance_km(origin_latitude, origin_longitude, destination_latitude, destination_longitude)
     return {"distance_km": distance_km, "eta_minutes": estimate_eta_minutes(distance_km)}
+
+
+@router.get("/reverse-geocode")
+async def reverse_geocode_location(latitude: float, longitude: float):
+    return await reverse_geocode(latitude, longitude)

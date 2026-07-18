@@ -20,8 +20,8 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-const TOKEN_KEY = "zanmeal-restaurant-access-token";
-const REFRESH_KEY = "zanmeal-restaurant-refresh-token";
+const TOKEN_KEY = "zanmart-restaurant-access-token";
+const REFRESH_KEY = "zanmart-restaurant-refresh-token";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<RestaurantUser | null>(null);

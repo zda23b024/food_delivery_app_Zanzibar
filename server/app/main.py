@@ -26,13 +26,14 @@ from app.routes import (
     reviews,
     riders,
     users,
+    verification_documents,
 )
 
 
 app = FastAPI(
     title=settings.app_name,
     version="1.0.0",
-    description="Backend API for the ZanMeal Zanzibar food delivery ecosystem.",
+    description="Backend API for the Zanmart Zanzibar food delivery ecosystem.",
 )
 
 app.add_middleware(
@@ -57,6 +58,7 @@ def health_check():
 
 app.include_router(auth.router, prefix=settings.api_prefix)
 app.include_router(users.router, prefix=settings.api_prefix)
+app.include_router(verification_documents.router, prefix=settings.api_prefix)
 app.include_router(addresses.router, prefix=settings.api_prefix)
 app.include_router(restaurants.router, prefix=settings.api_prefix)
 app.include_router(categories.router, prefix=settings.api_prefix)

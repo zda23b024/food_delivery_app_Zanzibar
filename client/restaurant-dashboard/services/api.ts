@@ -24,6 +24,29 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   return response.json() as Promise<T>;
 }
 
+async function upload<T>(path: string, formData: FormData, token?: string | null): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: formData
+  });
+
+  if (!response.ok) {
+    let message = `API request failed: ${response.status}`;
+    try {
+      const data = await response.json();
+      message = data.detail || message;
+    } catch {
+      // Keep generic message.
+    }
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<T>;
+}
+
 export const restaurantApi = {
   login: (body: { phone_number: string; password: string }) =>
     request<{ access_token: string; refresh_token: string }>("/auth/login", {
@@ -32,8 +55,10 @@ export const restaurantApi = {
     }),
   me: (token: string) => request("/auth/me", {}, token),
   getRestaurants: () => request("/restaurants"),
-  getFoodItems: (restaurantId?: string) =>
-    request(`/food-items${restaurantId ? `?restaurant_id=${restaurantId}` : ""}`),
+  getFoodItems: (restaurantId?: string, token?: string | null) =>
+    request(`/food-items${restaurantId ? `?restaurant_id=${restaurantId}&include_unavailable=true` : ""}`, {}, token),
+  getFoodItem: (foodItemId: string) => request(`/food-items/${foodItemId}`),
+  getCategories: () => request("/categories"),
   getOrders: (token: string) => request("/orders", {}, token),
   updateOrderStatus: (orderId: string, status: string, token: string) =>
     request(`/orders/${orderId}/status`, {
@@ -50,6 +75,16 @@ export const restaurantApi = {
       method: "PATCH",
       body: JSON.stringify(body)
     }, token),
+  uploadFoodImage: (foodItemId: string, image: File, token: string) => {
+    const formData = new FormData();
+    formData.append("image", image);
+    return upload(`/food-items/${foodItemId}/image`, formData, token);
+  },
+  updateRestaurant: (restaurantId: string, body: unknown, token: string) =>
+    request(`/restaurants/${restaurantId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body)
+    }, token),
   deleteFoodItem: (foodItemId: string, token: string) =>
     request(`/food-items/${foodItemId}`, {
       method: "DELETE"
@@ -58,5 +93,6 @@ export const restaurantApi = {
     request("/content/promotions", {
       method: "POST",
       body: JSON.stringify(body)
-    }, token)
+    }, token),
+  getPromotions: () => request("/content/promotions")
 };

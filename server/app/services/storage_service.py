@@ -7,6 +7,7 @@ from app.core.config import settings
 
 
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+ALLOWED_DOCUMENT_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".pdf"}
 
 
 async def save_image_upload(image: UploadFile, folder: str, entity_id: str) -> str:
@@ -22,6 +23,26 @@ async def save_image_upload(image: UploadFile, folder: str, entity_id: str) -> s
             raise HTTPException(status_code=500, detail="S3 public base URL is not configured")
         # Real S3 upload can be enabled by installing boto3 and writing content to the configured bucket.
         # The URL contract is already stable for the rest of the app.
+        return f"{settings.storage_s3_public_base_url.rstrip('/')}/{folder}/{file_name}"
+
+    upload_dir = Path(settings.storage_local_root) / folder
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    file_path = upload_dir / file_name
+    file_path.write_bytes(content)
+    return f"{settings.upload_base_url.rstrip('/')}/{folder}/{file_name}"
+
+
+async def save_document_upload(document: UploadFile, folder: str, entity_id: str) -> str:
+    extension = Path(document.filename or "").suffix.lower()
+    if extension not in ALLOWED_DOCUMENT_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Only PDF, JPG, PNG, and WEBP documents are allowed")
+
+    file_name = f"{entity_id}-{uuid4().hex}{extension}"
+    content = await document.read()
+
+    if settings.storage_backend.lower() == "s3":
+        if not settings.storage_s3_public_base_url:
+            raise HTTPException(status_code=500, detail="S3 public base URL is not configured")
         return f"{settings.storage_s3_public_base_url.rstrip('/')}/{folder}/{file_name}"
 
     upload_dir = Path(settings.storage_local_root) / folder

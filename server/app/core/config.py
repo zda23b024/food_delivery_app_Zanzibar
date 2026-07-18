@@ -2,15 +2,28 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "ZanMeal API"
+    app_name: str = "Zanmart API"
     api_prefix: str = "/api/v1"
-    database_url: str = "postgresql+psycopg2://zanmeal:zanmeal@localhost:5432/zanmeal"
+    database_url: str = "postgresql+psycopg2://zanmart:zanmart@localhost:5432/zanmart"
     secret_key: str = "change-this-secret-key-before-production"
     refresh_secret_key: str = "change-this-refresh-secret-before-production"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 14
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://localhost:3002",
+        "http://127.0.0.1:3002",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:19002",
+        "http://127.0.0.1:19002",
+        "http://localhost:19006",
+        "http://127.0.0.1:19006",
+    ]
     google_maps_api_key: str | None = None
     firebase_credentials_path: str | None = None
     upload_base_url: str = "/static/uploads"
@@ -27,6 +40,11 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = 60
     audit_log_enabled: bool = True
     payment_gateway_mode: str = "mock"
+    payment_live_adapter: str | None = None
+    payment_aggregator_base_url: str | None = None
+    payment_aggregator_api_key: str | None = None
+    payment_aggregator_api_secret: str | None = None
+    payment_aggregator_merchant_id: str | None = None
     payment_callback_secret: str = "change-this-payment-callback-secret"
     mpesa_api_key: str | None = None
     mpesa_api_secret: str | None = None

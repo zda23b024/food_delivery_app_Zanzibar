@@ -26,11 +26,17 @@ def save_favorite(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(CUSTOMER)),
 ):
-    if not payload.restaurant_id and not payload.food_item_id:
-        raise HTTPException(status_code=400, detail="restaurant_id or food_item_id is required")
-    if payload.restaurant_id and not db.query(Restaurant).filter(Restaurant.id == payload.restaurant_id).first():
+    if bool(payload.restaurant_id) == bool(payload.food_item_id):
+        raise HTTPException(status_code=400, detail="Send exactly one of restaurant_id or food_item_id")
+    if payload.restaurant_id and not db.query(Restaurant).filter(
+        Restaurant.id == payload.restaurant_id,
+        Restaurant.is_active.is_(True),
+    ).first():
         raise HTTPException(status_code=404, detail="Restaurant not found")
-    if payload.food_item_id and not db.query(FoodItem).filter(FoodItem.id == payload.food_item_id).first():
+    if payload.food_item_id and not db.query(FoodItem).filter(
+        FoodItem.id == payload.food_item_id,
+        FoodItem.is_active.is_(True),
+    ).first():
         raise HTTPException(status_code=404, detail="Food item not found")
 
     existing = (

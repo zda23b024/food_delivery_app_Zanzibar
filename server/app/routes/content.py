@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.constants.roles import ADMIN
+from app.constants.roles import ADMIN, RESTAURANT
 from app.core.database import get_db
 from app.core.dependencies import require_roles
 from app.models.banner import Banner
 from app.models.language import Language
 from app.models.promotion import Promotion
+from app.models.restaurant import Restaurant
 from app.models.user import User
 from app.schemas.support_schema import (
     BannerCreate,
@@ -25,8 +26,14 @@ router = APIRouter(prefix="/content", tags=["Platform Content"])
 def create_promotion(
     payload: PromotionCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(ADMIN)),
+    current_user: User = Depends(require_roles(ADMIN, RESTAURANT)),
 ):
+    if current_user.role == RESTAURANT:
+        if not payload.restaurant_id:
+            raise HTTPException(status_code=400, detail="Restaurant promotion requires restaurant_id")
+        owned = db.query(Restaurant).filter(Restaurant.id == payload.restaurant_id, Restaurant.owner_id == current_user.id).first()
+        if owned is None:
+            raise HTTPException(status_code=403, detail="You can create promotions only for your restaurant")
     promotion = Promotion(**payload.model_dump())
     db.add(promotion)
     db.commit()

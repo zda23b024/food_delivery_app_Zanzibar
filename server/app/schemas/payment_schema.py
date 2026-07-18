@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -12,7 +13,7 @@ class PaymentCreate(BaseModel):
 
 
 class PaymentUpdate(BaseModel):
-    status: str
+    status: Literal["pending", "processing", "authorized", "paid", "failed", "refunded", "cod_pending"]
     provider_reference: str | None = None
     failure_reason: str | None = None
 
@@ -37,6 +38,7 @@ class PaymentResponse(BaseModel):
     status: str
     provider_reference: str | None = None
     phone_number: str | None = None
+    failure_reason: str | None = None
     paid_at: datetime | None = None
     created_at: datetime
 

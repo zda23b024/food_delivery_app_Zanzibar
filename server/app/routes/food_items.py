@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.constants.roles import ADMIN
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import bearer_scheme, get_current_user
+from app.core.security import decode_access_token
 from app.models.food_item import FoodItem
 from app.models.restaurant import Restaurant
 from app.models.user import User
@@ -44,9 +45,24 @@ def search_food_items(
     q: str | None = Query(default=None),
     restaurant_id: str | None = None,
     category_id: str | None = None,
+    include_unavailable: bool = False,
     db: Session = Depends(get_db),
+    credentials=Depends(bearer_scheme),
 ):
-    query = db.query(FoodItem).filter(FoodItem.is_active.is_(True), FoodItem.is_available.is_(True))
+    query = db.query(FoodItem).filter(FoodItem.is_active.is_(True))
+    can_manage = False
+    if include_unavailable and credentials is not None:
+        try:
+            payload = decode_access_token(credentials.credentials)
+            user = db.query(User).filter(User.id == payload.get("sub"), User.is_active.is_(True)).first()
+            if user and user.role == ADMIN:
+                can_manage = True
+            elif user and restaurant_id:
+                can_manage = db.query(Restaurant).filter(Restaurant.id == restaurant_id, Restaurant.owner_id == user.id).first() is not None
+        except ValueError:
+            can_manage = False
+    if not can_manage:
+        query = query.filter(FoodItem.is_available.is_(True))
     if q:
         pattern = f"%{q}%"
         query = query.filter(or_(FoodItem.name.ilike(pattern), FoodItem.description.ilike(pattern)))

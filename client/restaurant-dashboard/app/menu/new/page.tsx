@@ -4,25 +4,33 @@ import { FormEvent, useEffect, useState } from "react";
 import { Save } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { restaurantApi } from "@/services/api";
+import { findOwnedRestaurant } from "@/utils/backend";
 
 export default function NewMenuItemPage() {
   const { accessToken, user } = useAuth();
   const [restaurantId, setRestaurantId] = useState("");
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("Local Meals");
+  const [categoryId, setCategoryId] = useState("");
+  const [description, setDescription] = useState("");
   const [price, setPrice] = useState("12000");
   const [prepMinutes, setPrepMinutes] = useState("18");
+  const [available, setAvailable] = useState(true);
+  const [featured, setFeatured] = useState(false);
+  const [image, setImage] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    restaurantApi
-      .getRestaurants()
-      .then((restaurants) => {
-        const ownedRestaurant = (restaurants as any[]).find((restaurant) => restaurant.owner_id === user?.id);
+    Promise.all([restaurantApi.getRestaurants(), restaurantApi.getCategories()])
+      .then(([restaurants, liveCategories]) => {
+        const ownedRestaurant = findOwnedRestaurant(restaurants as any[], user?.id);
         if (ownedRestaurant) {
           setRestaurantId(ownedRestaurant.id);
         }
+        const mappedCategories = (liveCategories as any[]).map((category) => ({ id: category.id, name: category.name }));
+        setCategories(mappedCategories);
+        setCategoryId(mappedCategories[0]?.id || "");
       })
       .catch(() => {
         // The submit handler will show a clear error if no restaurant is available.
@@ -42,19 +50,27 @@ export default function NewMenuItemPage() {
       return;
     }
     try {
-      await restaurantApi.createFoodItem(
+      const created = await restaurantApi.createFoodItem(
         {
           restaurant_id: restaurantId,
+          category_id: categoryId || undefined,
           name,
-          description: `${category} item`,
+          description: description || "Restaurant menu item",
           price,
           preparation_time_minutes: Number(prepMinutes),
-          is_available: true,
+          is_available: available,
+          is_featured: featured,
           is_halal: true
         },
         accessToken
-      );
-      setMessage("Food item sent to backend.");
+      ) as { id: string };
+      if (image) {
+        await restaurantApi.uploadFoodImage(created.id, image, accessToken);
+      }
+      setMessage(image ? "Food item and image saved to backend." : "Food item sent to backend.");
+      setName("");
+      setDescription("");
+      setImage(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save food item.");
     }
@@ -76,12 +92,16 @@ export default function NewMenuItemPage() {
           </div>
           <div className="field">
             <label>Category</label>
-            <select value={category} onChange={(event) => setCategory(event.target.value)}>
-              <option>Local Meals</option>
-              <option>Seafood</option>
-              <option>Drinks</option>
-              <option>Snacks</option>
+            <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+              <option value="">No category</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
             </select>
+          </div>
+          <div className="field form-span">
+            <label>Description</label>
+            <textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} />
           </div>
           <div className="field">
             <label>Price</label>
@@ -91,6 +111,18 @@ export default function NewMenuItemPage() {
             <label>Prep minutes</label>
             <input value={prepMinutes} onChange={(event) => setPrepMinutes(event.target.value)} />
           </div>
+          <div className="field form-span">
+            <label>Food image</label>
+            <input type="file" accept="image/*" onChange={(event) => setImage(event.target.files?.[0] || null)} />
+          </div>
+          <label className="row form-span">
+            <input type="checkbox" checked={available} onChange={(event) => setAvailable(event.target.checked)} />
+            Available for ordering
+          </label>
+          <label className="row form-span">
+            <input type="checkbox" checked={featured} onChange={(event) => setFeatured(event.target.checked)} />
+            Featured item
+          </label>
           {error && <p className="form-error form-span">{error}</p>}
           {message && <p className="form-success form-span">{message}</p>}
           <button className="primary-button form-span">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createOrderTrackingSocket } from "@/services/api";
+import { api, createOrderTrackingSocket } from "@/services/api";
 
 export type TrackingEvent = {
   order_id: string;
@@ -24,6 +24,23 @@ export function useOrderTracking(orderId: string | null) {
     if (!orderId) {
       return;
     }
+
+    api.getTrackingEvents(orderId).then((trackingEvents) => {
+      setEvents(
+        trackingEvents.map((event) => ({
+          order_id: event.order_id,
+          type: "tracking_event",
+          rider_id: event.rider_id || undefined,
+          status: event.status,
+          latitude: event.latitude ?? undefined,
+          longitude: event.longitude ?? undefined,
+          eta_minutes: event.eta_minutes ?? undefined,
+          distance_km: event.distance_km ?? undefined,
+          message: event.message || undefined,
+          sent_at: event.recorded_at || event.created_at
+        }))
+      );
+    }).catch(() => undefined);
 
     const socket = createOrderTrackingSocket(orderId);
     socket.onopen = () => setConnected(true);

@@ -65,3 +65,10 @@ class UserUpdate(BaseModel):
     email: EmailStr | None = None
     preferred_language: str | None = None
     profile_image_url: str | None = None
+
+
+class UserAdminUpdate(UserUpdate):
+    role: str | None = None
+    is_active: bool | None = None
+    is_phone_verified: bool | None = None
+    is_email_verified: bool | None = None

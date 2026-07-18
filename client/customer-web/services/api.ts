@@ -48,6 +48,72 @@ export type OrderResponse = {
   }[];
 };
 
+export type PaymentResponse = {
+  id: string;
+  order_id: string;
+  amount: string;
+  currency: string;
+  method: string;
+  provider?: string | null;
+  status: string;
+  provider_reference?: string | null;
+  checkout_reference?: string | null;
+  provider_message?: string | null;
+  requires_customer_action?: boolean;
+};
+
+export type AddressResponse = {
+  id: string;
+  user_id: string;
+  street_address?: string | null;
+  area?: string | null;
+  city?: string | null;
+  island?: string | null;
+  landmark?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  delivery_notes?: string | null;
+  is_default: boolean;
+  created_at: string;
+};
+
+export type DistanceResponse = {
+  distance_km: number;
+  eta_minutes: number;
+  provider?: string;
+};
+
+export type ReverseGeocodeResponse = {
+  provider: string;
+  formatted_address: string;
+  area: string;
+  city: string;
+  island: string;
+  distance_to_area_km?: number;
+  fallback_reason?: string;
+};
+
+export type TrackingEventResponse = {
+  order_id: string;
+  rider_id?: string | null;
+  status: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  eta_minutes?: number | null;
+  distance_km?: number | null;
+  message?: string | null;
+  recorded_at?: string | null;
+  created_at: string;
+};
+
+export type FavoriteResponse = {
+  id: string;
+  user_id: string;
+  restaurant_id?: string | null;
+  food_item_id?: string | null;
+  created_at: string;
+};
+
 async function request<T>(path: string, options: RequestInit = {}, token?: string | null): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
@@ -72,6 +138,29 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   return response.json() as Promise<T>;
 }
 
+async function uploadRequest<T>(path: string, formData: FormData, token?: string | null): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: formData
+  });
+
+  if (!response.ok) {
+    let message = `API request failed: ${response.status}`;
+    try {
+      const data = await response.json();
+      message = data.detail || message;
+    } catch {
+      // Keep the generic status message when the backend returns no JSON body.
+    }
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<T>;
+}
+
 export const api = {
   register: (body: {
     full_name: string;
@@ -79,7 +168,7 @@ export const api = {
     phone_number: string;
     preferred_language: string;
     password: string;
-    role: "customer";
+    role: "customer" | "restaurant" | "rider";
   }) =>
     request<UserResponse>("/auth/register", {
       method: "POST",
@@ -101,19 +190,41 @@ export const api = {
       body: JSON.stringify({ refresh_token: refreshToken })
     }),
   me: (token: string) => request<UserResponse>("/auth/me", {}, token),
+  createAddress: (
+    body: {
+      street_address?: string;
+      area?: string;
+      city?: string;
+      island?: string;
+      landmark?: string | null;
+      latitude?: number | null;
+      longitude?: number | null;
+      delivery_notes?: string | null;
+      is_default?: boolean;
+    },
+    token: string
+  ) =>
+    request<unknown>("/addresses", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }, token),
+  uploadVerificationDocument: (formData: FormData, token: string) =>
+    uploadRequest("/verification-documents", formData, token),
   getOrders: (token: string) => request<OrderResponse[]>("/orders", {}, token),
   getRestaurants: () => request("/restaurants"),
   getCategories: () => request("/categories"),
   getFoodItems: () => request("/food-items"),
-  saveFavorite: (body: { restaurant_id?: string; food_item_id?: string }) =>
-    request("/favorites", {
+  getAddresses: (token: string) => request<AddressResponse[]>("/addresses/me", {}, token),
+  getFavorites: (token: string) => request<FavoriteResponse[]>("/favorites", {}, token),
+  saveFavorite: (body: { restaurant_id?: string; food_item_id?: string }, token?: string | null) =>
+    request<FavoriteResponse>("/favorites", {
       method: "POST",
       body: JSON.stringify(body)
-    }),
-  removeFavorite: (favoriteId: string) =>
-    request(`/favorites/${favoriteId}`, {
+    }, token),
+  removeFavorite: (favoriteId: string, token?: string | null) =>
+    request<{ message: string }>(`/favorites/${favoriteId}`, {
       method: "DELETE"
-    }),
+    }, token),
   getDistance: (body: {
     origin_latitude: number;
     origin_longitude: number;
@@ -121,10 +232,13 @@ export const api = {
     destination_longitude: number;
     preparation_minutes?: number;
   }) =>
-    request("/maps/distance", {
+    request<DistanceResponse>("/maps/distance", {
       method: "POST",
       body: JSON.stringify(body)
     }),
+  reverseGeocode: (latitude: number, longitude: number) =>
+    request<ReverseGeocodeResponse>(`/maps/reverse-geocode?latitude=${latitude}&longitude=${longitude}`),
+  getTrackingEvents: (orderId: string) => request<TrackingEventResponse[]>(`/delivery-tracking/order/${orderId}`),
   optimizeRoute: (stops: { label: string; latitude: number; longitude: number }[]) =>
     request("/maps/route-optimization", {
       method: "POST",
@@ -136,7 +250,7 @@ export const api = {
       body: JSON.stringify(body)
     }),
   sendPayment: (body: unknown, token?: string | null) =>
-    request("/payments", {
+    request<PaymentResponse>("/payments", {
       method: "POST",
       body: JSON.stringify(body)
     }, token),

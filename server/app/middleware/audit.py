@@ -9,7 +9,7 @@ from app.core.database import SessionLocal
 from app.models.audit_log import AuditLog
 
 
-logger = logging.getLogger("zanmeal.audit")
+logger = logging.getLogger("zanmart.audit")
 
 
 class AuditLogMiddleware(BaseHTTPMiddleware):

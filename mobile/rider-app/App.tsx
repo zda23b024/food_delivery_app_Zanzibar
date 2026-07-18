@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { Header, OrderCard, StatCard } from "./components";
-import { acceptedOrders as mockAcceptedOrders, availableOrders as mockAvailableOrders, formatMoney } from "./data";
 import { createTrackingSocket, riderApi } from "./api";
 import type { RiderOrder } from "./types";
 
@@ -24,9 +23,9 @@ export default function App() {
   const [token, setToken] = useState("");
   const [user, setUser] = useState<any | null>(null);
   const [rider, setRider] = useState<any | null>(null);
-  const [availableOrders, setAvailableOrders] = useState<RiderOrder[]>(mockAvailableOrders);
-  const [acceptedOrders, setAcceptedOrders] = useState<RiderOrder[]>(mockAcceptedOrders);
-  const [statusMessage, setStatusMessage] = useState("Backend not connected yet. Demo data is shown until login succeeds.");
+  const [availableOrders, setAvailableOrders] = useState<RiderOrder[]>([]);
+  const [acceptedOrders, setAcceptedOrders] = useState<RiderOrder[]>([]);
+  const [statusMessage, setStatusMessage] = useState("Login to load live rider orders from the backend.");
 
   async function handleLogin(phone: string, password: string) {
     const tokens = await riderApi.login(phone, password);
@@ -75,12 +74,12 @@ export default function App() {
       return <NavigationScreen setScreen={setScreen} token={token} riderId={rider?.id} order={acceptedOrders[0]} />;
     }
     if (screen === "Earnings") {
-      return <EarningsScreen token={token} rider={rider} />;
+      return <EarningsScreen setScreen={setScreen} token={token} rider={rider} />;
     }
     if (screen === "Profile") {
       return <ProfileScreen setScreen={setScreen} user={user} rider={rider} />;
     }
-    return <SettingsScreen />;
+    return <SettingsScreen setScreen={setScreen} />;
   }
 
   return (
@@ -117,6 +116,10 @@ function mapBackendOrders(orders: any[], fallbackStatus: RiderOrder["status"]): 
   }));
 }
 
+function formatMoney(value: number) {
+  return `TZS ${value.toLocaleString("en-TZ")}`;
+}
+
 function LoginScreen({ onLogin }: { onLogin: (phone: string, password: string) => Promise<void> }) {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -133,17 +136,20 @@ function LoginScreen({ onLogin }: { onLogin: (phone: string, password: string) =
 
   return (
     <View style={styles.loginScreen}>
-      <View style={styles.logoMark}>
-        <Text style={styles.logoText}>Z</Text>
+      <View style={styles.loginCard}>
+        <View style={styles.logoMark}>
+          <Text style={styles.logoText}>Z</Text>
+        </View>
+        <Text style={styles.loginTitle}>Zanmart Rider</Text>
+        <Text style={styles.loginSubtitle}>Deliver with Swiggy-inspired speed across Zanzibar.</Text>
+        <Text style={styles.loginTag}>Sign in and pick up your next delivery job in minutes.</Text>
+        <TextInput style={styles.input} placeholder="Phone number" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
+        <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
+        {message ? <Text style={styles.errorText}>{message}</Text> : null}
+        <Pressable style={styles.primaryButton} onPress={submit}>
+          <Text style={styles.primaryButtonText}>Login</Text>
+        </Pressable>
       </View>
-      <Text style={styles.loginTitle}>ZanMeal Rider</Text>
-      <Text style={styles.loginSubtitle}>Delivery partner app</Text>
-      <TextInput style={styles.input} placeholder="Phone number" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
-      <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
-      {message ? <Text style={styles.errorText}>{message}</Text> : null}
-      <Pressable style={styles.primaryButton} onPress={submit}>
-        <Text style={styles.primaryButtonText}>Login</Text>
-      </Pressable>
     </View>
   );
 }
@@ -165,7 +171,7 @@ function HomeScreen({
 }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.screenContent}>
-      <Header title="Home" subtitle={rider?.service_area || "Stone Town service area"} />
+      <Header title="Home" subtitle={rider?.service_area || "Stone Town service area"} onPress={() => setScreen("Home")} />
       <Text style={styles.muted}>{message}</Text>
       <View style={styles.onlinePanel}>
         <View>
@@ -207,7 +213,7 @@ function AvailableOrdersScreen({
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.screenContent}>
-      <Header title="Available Orders" subtitle="Nearby requests waiting for riders" />
+      <Header title="Available Orders" subtitle="Nearby requests waiting for riders" onPress={() => setScreen("Home")} />
       {orders.map((order) => (
         <OrderCard key={order.id} order={order} actionLabel="Accept Order" onAction={() => acceptOrder(order)} />
       ))}
@@ -218,7 +224,7 @@ function AvailableOrdersScreen({
 function AcceptedOrdersScreen({ setScreen, orders }: { setScreen: (screen: Screen) => void; orders: RiderOrder[] }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.screenContent}>
-      <Header title="Accepted Orders" subtitle="Pickup and delivery tasks" />
+      <Header title="Accepted Orders" subtitle="Pickup and delivery tasks" onPress={() => setScreen("Home")} />
       {orders.map((order) => (
         <OrderCard key={order.id} order={order} actionLabel="Start Navigation" onAction={() => setScreen("Navigation")} />
       ))}
@@ -227,62 +233,90 @@ function AcceptedOrdersScreen({ setScreen, orders }: { setScreen: (screen: Scree
 }
 
 function NavigationScreen({ setScreen, token, riderId, order }: { setScreen: (screen: Screen) => void; token: string; riderId?: string; order?: RiderOrder }) {
-  const orderId = process.env.EXPO_PUBLIC_TRACKING_ORDER_ID || order?.id || mockAcceptedOrders[0].id;
+  const orderId = process.env.EXPO_PUBLIC_TRACKING_ORDER_ID || order?.id || "";
   const socketRef = useRef<WebSocket | null>(null);
   const [trackingState, setTrackingState] = useState<"connecting" | "live" | "offline">("connecting");
-
-  const routePoints = useMemo(
-    () => [
-      { latitude: -6.162, longitude: 39.192, eta_minutes: 16, distance_km: 4.7, message: "Rider is heading to pickup" },
-      { latitude: -6.159, longitude: 39.197, eta_minutes: 11, distance_km: 3.2, message: "Rider picked up the order" },
-      { latitude: -6.154, longitude: 39.203, eta_minutes: 6, distance_km: 1.7, message: "Rider is near the destination" }
-    ],
-    []
-  );
+  const [latitude, setLatitude] = useState("-6.162000");
+  const [longitude, setLongitude] = useState("39.192000");
+  const [destinationLatitude, setDestinationLatitude] = useState("-6.154000");
+  const [destinationLongitude, setDestinationLongitude] = useState("39.203000");
+  const [eta, setEta] = useState<{ distance_km: number; eta_minutes: number } | null>(null);
+  const [message, setMessage] = useState("Enter rider coordinates, calculate ETA, then send a live tracking update.");
+  const currentLatitude = Number(latitude);
+  const currentLongitude = Number(longitude);
+  const targetLatitude = Number(destinationLatitude);
+  const targetLongitude = Number(destinationLongitude);
+  const hasCurrentLocation = Number.isFinite(currentLatitude) && Number.isFinite(currentLongitude);
+  const hasDestination = Number.isFinite(targetLatitude) && Number.isFinite(targetLongitude);
 
   useEffect(() => {
+    if (!orderId) {
+      setTrackingState("offline");
+      return;
+    }
     const socket = createTrackingSocket(orderId);
     socketRef.current = socket;
-    socket.onopen = () => {
-      setTrackingState("live");
-      socket.send(
-        JSON.stringify({
-          type: "status_update",
-          status: "picked_up",
-          rider_id: riderId,
-          latitude: routePoints[0].latitude,
-          longitude: routePoints[0].longitude,
-          eta_minutes: routePoints[0].eta_minutes,
-          distance_km: routePoints[0].distance_km,
-          message: "Rider navigation started"
-        })
-      );
-    };
+    socket.onopen = () => setTrackingState("live");
     socket.onerror = () => setTrackingState("offline");
     socket.onclose = () => setTrackingState("offline");
 
-    let index = 0;
-    const interval = setInterval(() => {
-      if (socket.readyState !== WebSocket.OPEN) {
-        return;
-      }
-      const point = routePoints[index % routePoints.length];
-      socket.send(
-        JSON.stringify({
-          type: "location_update",
-          status: "on_the_way",
-          rider_id: riderId,
-          ...point
-        })
-      );
-      index += 1;
-    }, 5000);
-
     return () => {
-      clearInterval(interval);
       socket.close();
     };
-  }, [orderId, riderId, routePoints]);
+  }, [orderId]);
+
+  async function calculateEta() {
+    if (!hasCurrentLocation || !hasDestination) {
+      setMessage("Add valid current and destination coordinates first.");
+      return;
+    }
+    try {
+      const result = await riderApi.getDistance({
+        origin_latitude: currentLatitude,
+        origin_longitude: currentLongitude,
+        destination_latitude: targetLatitude,
+        destination_longitude: targetLongitude
+      });
+      setEta(result);
+      setMessage(`ETA ${result.eta_minutes} min, ${result.distance_km.toFixed(2)} km.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not calculate ETA.");
+    }
+  }
+
+  async function sendLiveLocation(status = "on_the_way") {
+    if (!orderId || !hasCurrentLocation) {
+      setMessage("No active order or valid current coordinates.");
+      return;
+    }
+    const payload = {
+      order_id: orderId,
+      rider_id: riderId,
+      status,
+      latitude: currentLatitude,
+      longitude: currentLongitude,
+      eta_minutes: eta?.eta_minutes,
+      distance_km: eta?.distance_km,
+      message: status === "delivered" ? "Delivery completed by rider" : "Rider location updated"
+    };
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: "location_update", ...payload }));
+    }
+    if (token) {
+      await riderApi.sendTracking(payload, token);
+      if (status === "on_the_way") {
+        await riderApi.updateOrderStatus(orderId, "on_the_way", token, riderId);
+      }
+    }
+    setMessage(status === "delivered" ? "Delivery completion sent." : "Live location sent to customer.");
+  }
+
+  function openGoogleMaps() {
+    const url = hasCurrentLocation && hasDestination
+      ? `https://www.google.com/maps/dir/?api=1&origin=${currentLatitude},${currentLongitude}&destination=${targetLatitude},${targetLongitude}&travelmode=driving`
+      : "https://www.google.com/maps";
+    Linking.openURL(url);
+  }
 
   async function completeDelivery() {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
@@ -291,8 +325,8 @@ function NavigationScreen({ setScreen, token, riderId, order }: { setScreen: (sc
           type: "status_update",
           status: "delivered",
           rider_id: riderId,
-          latitude: -6.162,
-          longitude: 39.192,
+          latitude: hasCurrentLocation ? currentLatitude : undefined,
+          longitude: hasCurrentLocation ? currentLongitude : undefined,
           eta_minutes: 0,
           distance_km: 0,
           message: "Delivery completed by rider"
@@ -305,8 +339,8 @@ function NavigationScreen({ setScreen, token, riderId, order }: { setScreen: (sc
           order_id: orderId,
           rider_id: riderId,
           status: "delivered",
-          latitude: -6.162,
-          longitude: 39.192,
+          latitude: hasCurrentLocation ? currentLatitude : undefined,
+          longitude: hasCurrentLocation ? currentLongitude : undefined,
           eta_minutes: 0,
           distance_km: 0,
           message: "Delivery completed by rider"
@@ -320,17 +354,37 @@ function NavigationScreen({ setScreen, token, riderId, order }: { setScreen: (sc
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.screenContent}>
-      <Header title="Navigation" subtitle={order ? `${order.restaurant} to ${order.dropoff}` : "Pickup to customer"} />
-      <View style={styles.mapMock}>
-        <Ionicons name="navigate" size={42} color="#FFFFFF" />
-        <Text style={styles.mapText}>4.7 km - 16 min</Text>
-        <Text style={styles.mapSubText}>Live tracking: {trackingState}</Text>
+      <Header title="Navigation" subtitle={order ? `${order.restaurant} to ${order.dropoff}` : "Pickup to customer"} onPress={() => setScreen("Home")} />
+      <View style={styles.navigationPanel}>
+        <View style={styles.navigationHeader}>
+          <Ionicons name="navigate" size={34} color="#FF6B00" />
+          <View>
+            <Text style={styles.panelTitle}>{eta ? `${eta.distance_km.toFixed(2)} km - ${eta.eta_minutes} min` : "Live navigation"}</Text>
+            <Text style={styles.muted}>Tracking socket: {trackingState}</Text>
+          </View>
+        </View>
+        <View style={styles.coordinateGrid}>
+          <TextInput style={styles.input} placeholder="Current latitude" keyboardType="numbers-and-punctuation" value={latitude} onChangeText={setLatitude} />
+          <TextInput style={styles.input} placeholder="Current longitude" keyboardType="numbers-and-punctuation" value={longitude} onChangeText={setLongitude} />
+          <TextInput style={styles.input} placeholder="Destination latitude" keyboardType="numbers-and-punctuation" value={destinationLatitude} onChangeText={setDestinationLatitude} />
+          <TextInput style={styles.input} placeholder="Destination longitude" keyboardType="numbers-and-punctuation" value={destinationLongitude} onChangeText={setDestinationLongitude} />
+        </View>
+        <Text style={styles.muted}>{message}</Text>
       </View>
       <View style={styles.stepList}>
-        <Text style={styles.step}>1. Arrive at Dhow Bites</Text>
-        <Text style={styles.step}>2. Confirm pickup code</Text>
-        <Text style={styles.step}>3. Deliver to Kendwa Rocks reception</Text>
+        <Text style={styles.step}>1. Calculate ETA from rider location to customer destination</Text>
+        <Text style={styles.step}>2. Open Google Maps for turn-by-turn navigation</Text>
+        <Text style={styles.step}>3. Send live tracking updates until delivery is complete</Text>
       </View>
+      <Pressable style={styles.secondaryButton} onPress={calculateEta}>
+        <Text style={styles.secondaryButtonText}>Calculate ETA</Text>
+      </Pressable>
+      <Pressable style={styles.secondaryButton} onPress={openGoogleMaps}>
+        <Text style={styles.secondaryButtonText}>Open Google Maps</Text>
+      </Pressable>
+      <Pressable style={styles.secondaryButton} onPress={() => sendLiveLocation()}>
+        <Text style={styles.secondaryButtonText}>Send Live Location</Text>
+      </Pressable>
       <Pressable style={styles.primaryButton} onPress={completeDelivery}>
         <Text style={styles.primaryButtonText}>Complete Delivery</Text>
       </Pressable>
@@ -338,7 +392,7 @@ function NavigationScreen({ setScreen, token, riderId, order }: { setScreen: (sc
   );
 }
 
-function EarningsScreen({ token, rider }: { token: string; rider: any | null }) {
+function EarningsScreen({ setScreen, token, rider }: { setScreen: (screen: Screen) => void; token: string; rider: any | null }) {
   const [earnings, setEarnings] = useState<any | null>(null);
 
   useEffect(() => {
@@ -348,7 +402,7 @@ function EarningsScreen({ token, rider }: { token: string; rider: any | null }) 
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.screenContent}>
-      <Header title="Earnings" subtitle="Today and weekly payout summary" />
+      <Header title="Earnings" subtitle="Today and weekly payout summary" onPress={() => setScreen("Home")} />
       <View style={styles.statsRow}>
         <StatCard icon="cash" label="Total" value={formatMoney(Number(earnings?.total_earnings || rider?.total_earnings || 0))} />
         <StatCard icon="calendar" label="Deliveries" value={String(earnings?.total_deliveries || rider?.total_deliveries || 0)} />
@@ -366,7 +420,7 @@ function EarningsScreen({ token, rider }: { token: string; rider: any | null }) 
 function ProfileScreen({ setScreen, user, rider }: { setScreen: (screen: Screen) => void; user: any | null; rider: any | null }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.screenContent}>
-      <Header title="Profile" subtitle="Rider account and vehicle details" />
+      <Header title="Profile" subtitle="Rider account and vehicle details" onPress={() => setScreen("Home")} />
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>{user?.full_name || "Rider"}</Text>
         <Text style={styles.detailLine}>{rider?.vehicle_type || "Vehicle"} - {rider?.vehicle_plate_number || "No plate"}</Text>
@@ -380,10 +434,10 @@ function ProfileScreen({ setScreen, user, rider }: { setScreen: (screen: Screen)
   );
 }
 
-function SettingsScreen() {
+function SettingsScreen({ setScreen }: { setScreen: (screen: Screen) => void }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.screenContent}>
-      <Header title="Settings" subtitle="Availability, language, and notifications" />
+      <Header title="Settings" subtitle="Availability, language, and notifications" onPress={() => setScreen("Home")} />
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>Preferences</Text>
         <Text style={styles.detailLine}>Language: English</Text>
@@ -435,8 +489,27 @@ const styles = StyleSheet.create({
   },
   loginSubtitle: {
     color: "#6F737B",
-    marginBottom: 10,
+    marginBottom: 4,
     textAlign: "center"
+  },
+  loginTag: {
+    color: "#4A5568",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 16
+  },
+  loginCard: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 10,
+    gap: 14
   },
   input: {
     backgroundColor: "#FFFFFF",
@@ -464,7 +537,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     minHeight: 48,
-    justifyContent: "center"
+    justifyContent: "center",
+    marginBottom: 10
   },
   secondaryButtonText: {
     color: "#1A1A1A",
@@ -507,26 +581,22 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 14
   },
-  mapMock: {
-    alignItems: "center",
-    backgroundColor: "#127C83",
+  navigationPanel: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E7E8EC",
     borderRadius: 8,
-    height: 280,
-    justifyContent: "center",
-    marginBottom: 14
+    borderWidth: 1,
+    gap: 12,
+    marginBottom: 14,
+    padding: 16
   },
-  mapText: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "900",
-    marginTop: 10
+  navigationHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12
   },
-  mapSubText: {
-    color: "#E7FEFF",
-    fontSize: 13,
-    fontWeight: "700",
-    marginTop: 6,
-    textTransform: "capitalize"
+  coordinateGrid: {
+    gap: 10
   },
   stepList: {
     backgroundColor: "#FFFFFF",
